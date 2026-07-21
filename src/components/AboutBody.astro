@@ -1,0 +1,27 @@
+---
+/**
+ * `AboutBody` — shared body for the locale-aware about page.
+ *
+ * Used by BOTH:
+ *   - `src/pages/about.astro`           (default locale, unprefixed URL)
+ *   - `src/pages/[locale]/about.astro`  (non-default locales, prefixed URL)
+ *
+ * The two route files exist only as thin `getStaticPaths` wrappers
+ * around this component — they pass the rendered MDX content via the
+ * default slot and the page's `title` / `locale` as props. Mirrors the
+ * `TagListPageBody.astro` / `HomePage.astro` route-dedup pattern (see
+ * A1 / C3 in issues.md).
+ */
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import Main from "@/components/Main.astro";
+
+interface Props {
+  locale: string;
+  title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<Breadcrumb />
+<Main pageTitle={title} class="app-prose"><slot /></Main>

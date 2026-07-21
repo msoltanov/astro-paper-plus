@@ -1,0 +1,31 @@
+---
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import HomePage from "@/components/HomePage.astro";
+import { postsByLocale } from "@/utils/postsByLocale";
+import { useTranslations } from "@/i18n";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+import config from "@/config";
+
+// This route serves the default locale (en, unprefixed URL).
+// Non-default locales have their own parallel route at
+// src/pages/[locale]/index.astro. Both routes render the shared
+// `HomePage.astro` body — see that file's header comment for why.
+const locale = Astro.currentLocale ?? DEFAULT_LOCALE;
+const t = useTranslations(locale);
+const posts = await getCollection("posts", postsByLocale(DEFAULT_LOCALE));
+const hrefByLocale = hrefByLocaleForStaticRoute(
+  "",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  locale
+);
+---
+
+<Layout
+  title={t.pages.homeTitle ?? config.site.title}
+  description={t.pages.homeDesc ?? config.site.description}
+  hrefByLocale={hrefByLocale}
+>
+  <HomePage locale={locale} posts={posts} />
+</Layout>

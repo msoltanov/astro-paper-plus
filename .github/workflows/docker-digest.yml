@@ -1,0 +1,105 @@
+name: Docker image digest drift check
+
+# #32 OPS — the Dockerfile pins image digests for `node` and `nginx`
+# to guarantee reproducible builds. Upstream image registries update
+# the `:<version>-bookworm-slim` and `:<version>-alpine` tags
+# regularly (security patches, base-image bumps) without changing
+# the tag name, so the pinned digest can drift to a stale value
+# without `Dockerfile` ever changing. This workflow runs:
+#
+#   1. `docker buildx imagetools inspect <tag>` to fetch the current
+#      upstream digest
+#   2. Compare it against the `ARG *_DIGEST=…` line in `Dockerfile`
+#   3. Fail (or open a PR) on drift
+#
+# Triggered by:
+#   - weekly cron (Monday 04:00 UTC)
+#   - `workflow_dispatch` for ad-hoc verification
+#   - push to main touching the Dockerfile (rerun on image-pinning change)
+#   - pull_request touching the Dockerfile (catch digest drift at review
+#     time, before the change merges — fork PRs DO run workflows in the
+#     base repo with read-only token by default, so this catches
+#     external contributions too)
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+  push:
+    paths:
+      - "Dockerfile"
+      - ".github/workflows/docker-digest.yml"
+  pull_request:
+    paths:
+      - "Dockerfile"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Verify pinned digests match upstream
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      # Pull the current digests via `docker buildx imagetools
+      # inspect`. For a multi-arch tag (`node:24-bookworm-slim`),
+      # the resolver returns the OCI image index descriptor; for a
+      # single-arch tag, the manifest descriptor. The descriptor's
+      # `Digest` is exactly what `FROM …@digest` pins — which is
+      # what `ARG NODE_DIGEST` / `ARG NGINX_DIGEST` in the Dockerfile
+      # hold. We use `--format '{{.Manifest.Digest}}'` to extract
+      # just that field.
+      #
+      # Previous version used `--raw` + a node JSON parser and had
+      # two bugs:
+      #   (1) the captured JSON was never piped into node, so
+      #       `readFileSync(0)` read empty stdin and threw.
+      #   (2) `.config.digest` doesn't exist on an OCI image
+      #       index — only on a per-platform manifest. The
+      #       comparison would always be `undefined` for multi-arch
+      #       tags, silently masking real drift.
+      - name: Inspect upstream node image
+        id: node
+        run: |
+          set -euo pipefail
+          NODE_VERSION="$(awk -F'=' '/^ARG NODE_VERSION=/{print $2}' Dockerfile)"
+          DIGEST="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "node:${NODE_VERSION}-bookworm-slim")"
+          echo "version=${NODE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "[node] tag=node:${NODE_VERSION}-bookworm-slim digest=${DIGEST}"
+
+      - name: Inspect upstream nginx image
+        id: nginx
+        run: |
+          set -euo pipefail
+          NGINX_VERSION="$(awk -F'=' '/^ARG NGINX_VERSION=/{print $2}' Dockerfile)"
+          DIGEST="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "nginx:${NGINX_VERSION}-alpine")"
+          echo "version=${NGINX_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "[nginx] tag=nginx:${NGINX_VERSION}-alpine digest=${DIGEST}"
+
+      # Diff against the Dockerfile's pinned values. If either
+      # drifted, fail the job so a contributor can manually re-pin
+      # via `docker buildx imagetools inspect` + edit.
+      - name: Diff against Dockerfile
+        run: |
+          set -euo pipefail
+          PINNED_NODE="$(awk -F'=' '/^ARG NODE_DIGEST=/{print $2}' Dockerfile | tr -d '"')"
+          PINNED_NGINX="$(awk -F'=' '/^ARG NGINX_DIGEST=/{print $2}' Dockerfile | tr -d '"')"
+          echo "pinned NODE_DIGEST=${PINNED_NODE}"
+          echo "pinned NGINX_DIGEST=${PINNED_NGINX}"
+          if [ "$PINNED_NODE" != "${{ steps.node.outputs.digest }}" ]; then
+            echo "::error::node digest drift: pinned=${PINNED_NODE} upstream=${{ steps.node.outputs.digest }}"
+            DRIFT=1
+          fi
+          if [ "$PINNED_NGINX" != "${{ steps.nginx.outputs.digest }}" ]; then
+            echo "::error::nginx digest drift: pinned=${PINNED_NGINX} upstream=${{ steps.nginx.outputs.digest }}"
+            DRIFT=1
+          fi
+          if [ "${DRIFT:-0}" = "1" ]; then
+            echo "::error::Re-pin via 'docker buildx imagetools inspect <tag>' + edit Dockerfile ARG *_DIGEST"
+            exit 1
+          fi
+          echo "All pinned digests match upstream — no drift."

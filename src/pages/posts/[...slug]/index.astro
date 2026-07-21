@@ -1,0 +1,171 @@
+---
+import { type CollectionEntry, getCollection, render } from "astro:content";
+import PostLayout from "@/layouts/PostLayout.astro";
+import PostDetailBody from "@/components/PostDetailBody.astro";
+import { getPostSlugSegments, getPostUrl } from "@/utils/getPostPaths";
+import { getSortedPosts } from "@/utils/getSortedPosts";
+import { postsByLocale } from "@/utils/postsByLocale";
+import { getLocaleFromPost } from "@/utils/getLocaleFromPost";
+import { parseDateInTz } from "@/utils/parseDateInTz";
+import { postDescription } from "@/utils/postDescription";
+import { ogInputsHash } from "@/utils/ogConstants";
+import {
+  buildContentTranslationGroups,
+  findContentSiblings,
+} from "@/utils/contentSiblings";
+import { postFilter } from "@/utils/postFilter";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import config from "@/config";
+
+export async function getStaticPaths() {
+  // This route serves ONLY the default locale (en). Non-default locales
+  // have their own parallel route at `src/pages/[locale]/posts/[...slug].astro`
+  // so we don't accidentally generate `/ru/posts/...` URLs from an en post.
+  const posts = await getCollection("posts", postsByLocale(DEFAULT_LOCALE));
+  const sortedPosts = getSortedPosts(posts);
+
+  // Single load + group-by-translation-identity across the FULL
+  // collection (still filtered through `postFilter`) so the sibling
+  // set for each post page includes the ru/tr translations (whose
+  // file paths live in their own locale-prefixed subtrees) without
+  // ever advertising a draft or scheduled sibling URL that wouldn't
+  // render on click. Mirrors the existing `postsByLocale` filter at
+  // the top of this file.
+  const allPosts = (await getCollection("posts")).filter(postFilter);
+  const translationGroups = buildContentTranslationGroups("posts", allPosts);
+
+  return sortedPosts.map((post, index) => {
+    const siblings = findContentSiblings("posts", post, translationGroups);
+    return {
+      params: {
+        slug: getPostSlugSegments(post.id, post.filePath, post.data.slug),
+      },
+      props: {
+        post,
+        locale: getLocaleFromPost(post),
+        // Sibling locale set + per-locale URLs (H6/Issue 8): the locale
+        // switcher advertises only locales that actually have a
+        // translation, and each link points at the sibling's *actual*
+        // rendered URL (which may differ from the file-path-derived slug
+        // when a frontmatter `slug:` override is in play).
+        availableLocales: siblings.availableLocales,
+        hrefByLocale: siblings.hrefByLocale,
+        // getSortedPosts returns newest-first; "previous" = older post
+        // (higher index), "next" = newer post (lower index).
+        prevPost:
+          index < sortedPosts.length - 1
+            ? {
+                id: sortedPosts[index + 1].id,
+                title: sortedPosts[index + 1].data.title,
+                filePath: sortedPosts[index + 1].filePath,
+                slug: sortedPosts[index + 1].data.slug,
+              }
+            : null,
+        nextPost:
+          index > 0
+            ? {
+                id: sortedPosts[index - 1].id,
+                title: sortedPosts[index - 1].data.title,
+                filePath: sortedPosts[index - 1].filePath,
+                slug: sortedPosts[index - 1].data.slug,
+              }
+            : null,
+      },
+    };
+  });
+}
+
+type AdjacentPost = {
+  id: string;
+  title: string;
+  filePath: string | undefined;
+  slug?: string;
+} | null;
+
+type Props = {
+  post: CollectionEntry<"posts">;
+  prevPost: AdjacentPost;
+  nextPost: AdjacentPost;
+  availableLocales: readonly string[];
+  hrefByLocale: Readonly<Record<string, string>>;
+};
+
+const { post, prevPost, nextPost, availableLocales, hrefByLocale } =
+  Astro.props;
+const locale = Astro.currentLocale ?? DEFAULT_LOCALE;
+
+const {
+  title,
+  ogImage: initOgImage,
+  canonicalURL,
+  pubDatetime,
+  modDatetime,
+  timezone,
+} = post.data;
+const description = postDescription(post);
+
+// Resolve string-or-Date into a Date in the post's timezone (or site
+// fallback) so PostLayout / metadata can call `.toISOString()` on it
+// — see src/utils/parseDateInTz.ts for the TZ-consistency rationale.
+const pubDate = parseDateInTz(pubDatetime, timezone);
+const modDate =
+  modDatetime != null ? parseDateInTz(modDatetime, timezone) : null;
+
+// `headings` powers the optional right-rail TOC. The component itself
+// short-circuits to "no render" when there are <2 h2/h3 entries, so we
+// don't need to guard here.
+const { Content, headings } = await render(post);
+
+let ogImageUrl: string | undefined;
+if (typeof initOgImage === "string") {
+  ogImageUrl = initOgImage;
+} else if (initOgImage?.src) {
+  ogImageUrl = initOgImage.src;
+}
+if (!ogImageUrl && config.features.dynamicOgImage) {
+  const postUrl = getPostUrl(
+    post.id,
+    post.filePath,
+    locale,
+    post.data.slug
+  ).replace(/\/+$/, "");
+  // Content-addressed URL: a hash of the OG inputs is appended as a
+  // `?v=…` query token so any change to title / author / site title /
+  // render version produces a new URL and busts every cache that
+  // previously held the old image (H4 in issues.md). The endpoint
+  // serves the same image for any query string — it's the URL itself
+  // that drives CDN/browser cache invalidation.
+  const hash = ogInputsHash({
+    title,
+    author: post.data.author ?? config.site.author,
+    siteTitle: config.site.title,
+  });
+  ogImageUrl = `${postUrl}/index.png?v=${hash}`;
+}
+const ogImage = ogImageUrl
+  ? new URL(ogImageUrl, Astro.url.origin).href
+  : undefined;
+---
+
+<PostLayout
+  title={`${title} | ${config.site.title}`}
+  description={description}
+  ogImage={ogImage}
+  ogImageAlt={title}
+  canonicalURL={canonicalURL}
+  pubDatetime={pubDate}
+  modDatetime={modDate}
+  availableLocales={availableLocales}
+  hrefByLocale={hrefByLocale}
+  tags={post.data.tags}
+>
+  <PostDetailBody {locale} {post} {prevPost} {nextPost} {headings}>
+    <Content />
+  </PostDetailBody>
+</PostLayout>
+
+<script>
+  import { initPostEnhancements } from "@/scripts/postEnhancements";
+  initPostEnhancements();
+  document.addEventListener("astro:after-swap", initPostEnhancements);
+</script>

@@ -1,0 +1,187 @@
+# ============================================================
+# AstroPaper+ — gitignore
+# Organized by tool/category. Tweak as the project evolves.
+# ============================================================
+
+# ------------------------------------------------------------
+# Build output & generated assets
+# ------------------------------------------------------------
+# Astro static build
+dist/
+# Astro generated types + dev cache
+.astro/
+# Pagefind search index (regenerated on every `pnpm build`)
+public/pagefind/
+# Pagefind staging directories created by the `copy-pagefind`
+# integration during a build (e.g. `.copy-pagefind-8ct0Mp/`). These
+# are temporary atomic-move staging areas; if a build aborts mid-way
+# they can be left behind, and since they live under `public/` Astro
+# would otherwise copy them into `dist/` on the next clean build
+# (deploying a duplicate Pagefind bundle under `.copy-pagefind-*`).
+public/.copy-pagefind-*/
+# Cached binaries downloaded by `scripts/secret-scan.mjs` (gitleaks
+# and its sibling tools). Regenerated on demand by `pnpm secret:scan`.
+.cache/
+
+# ------------------------------------------------------------
+# Dependencies
+# ------------------------------------------------------------
+node_modules/
+# Local pnpm store (when `package-manager-strict-store-path` is enabled)
+.pnpm-store/
+
+# ------------------------------------------------------------
+# Test & coverage output
+# ------------------------------------------------------------
+# Vitest coverage reports (HTML / lcov)
+coverage/
+# Vitest cache
+.vitest-cache/
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# ------------------------------------------------------------
+# Environment & secrets
+# ------------------------------------------------------------
+.env
+.env.production
+.env.development
+.env.test
+# Local-only env overrides (never commit)
+.env*.local
+.env.local
+
+# ------------------------------------------------------------
+# Logs
+# ------------------------------------------------------------
+# npm
+npm-debug.log*
+# yarn
+yarn-debug.log*
+yarn-error.log*
+# pnpm
+pnpm-debug.log*
+pnpm-error.log*
+# Generic / local scratch logs
+*.log
+!.github/**/*.log
+
+# ------------------------------------------------------------
+# Local scratch files (developer-only, never commit)
+# ------------------------------------------------------------
+# One-off debug / preview / static-serve helpers created
+# during local troubleshooting (`.tmp-args.json`,
+# `.tmp-serve.cjs`, `.tmp-dev.log`, …).
+.tmp-*
+.tmp/
+# Legacy i18n route cleanup scratch dir — kept locally
+# for reference; ESLint already excludes it from linting.
+.legacy-i18n-cleanup/
+
+# ------------------------------------------------------------
+# Docker / Compose overrides
+# ------------------------------------------------------------
+compose.override.yaml
+compose.override.yml
+# Local Docker build artifacts
+Dockerfile.local
+.docker-cache/
+
+# ------------------------------------------------------------
+# Editor & IDE
+# ------------------------------------------------------------
+# Visual Studio Code: shared project config (snippets,
+# extensions, launch). Personal settings remain ignored.
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/astro-paper.code-snippets
+
+# JetBrains (IntelliJ, WebStorm, Rider, …)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Cursor
+.cursor/
+# Windsurf
+.windsurf/
+# Aider
+.aider*
+.aider.chat.history.md
+# Claude Code (Anthropic CLI)
+.claude/
+# ChatGPT Codex CLI
+.codex/
+# opencode (terminal coding assistant)
+.opencode/
+# commandcode.ai
+.commandcode/
+# MiniMax Code (desktop app — local config/cache)
+.minimax/
+.minimax-code/
+.mimocode/
+.agents/
+Agents.md
+Claude.md
+issues.md
+fix-prompt.md
+tasks/
+tasks/todo.md
+tasks/lessons.md
+.claudeignore
+CLAUDE.md
+.vscode/
+
+
+# Mavis agent/team harness (personal runtime config, never commit)
+.harness/
+# Generic AI-tool state that should never be committed
+.ailocal/
+.ai-cache/
+# VS Code / Cursor timeline (local-only)
+.history/
+# Generic editor swap / backup files
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+*.rej
+
+# ------------------------------------------------------------
+# OS files
+# ------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+# Windows
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+$RECYCLE.BIN/
+# Linux
+*~
+
+# ------------------------------------------------------------
+# Misc
+# ------------------------------------------------------------
+# Archives (stray zip/rar artifacts, never commit)
+*.zip
+*.rar
+*.7z
+# Local npm/yarn/pnpm caches that shouldn't be at the repo root
+.npm/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+# OS / network share metadata
+*.lnk
+# Patch files left by tools like `git format-patch` / `hg`
+*.patch
+*.diff

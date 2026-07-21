@@ -1,0 +1,47 @@
+---
+/**
+ * Default-locale archives page — `src/pages/archives/[...index].astro`.
+ *
+ * R1 (issues.md): the previous static `src/pages/archives.astro`
+ * ignored its `getStaticPaths` export (Astro only calls
+ * `getStaticPaths` on dynamic routes). The `[...index]` rest
+ * parameter makes `params.index: undefined` resolve to the bare
+ * `/archives/` URL while keeping the `showArchives` gate real —
+ * flipping the flag now drops the page entirely from the build.
+ *
+ * The locale-prefixed sibling at `src/pages/[locale]/archives.astro`
+ * keeps its existing dynamic `[locale]` segment and is unchanged
+ * here; both render the shared `ArchivesBody.astro` body.
+ */
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import ArchivesBody from "@/components/ArchivesBody.astro";
+import { postFilter } from "@/utils/postFilter";
+import { postsByLocale } from "@/utils/postsByLocale";
+import { getSortedPosts } from "@/utils/getSortedPosts";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+import { useTranslations } from "@/i18n";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import config from "@/config";
+import { archivesPaths } from "@/utils/featurePages";
+
+export const getStaticPaths = archivesPaths;
+
+const posts = await getCollection("posts", postsByLocale(DEFAULT_LOCALE)).then(
+  p => p.filter(postFilter)
+);
+const sorted = getSortedPosts(posts);
+const hrefByLocale = hrefByLocaleForStaticRoute(
+  "archives",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  DEFAULT_LOCALE
+);
+const t = useTranslations(DEFAULT_LOCALE);
+---
+
+<Layout
+  title={`${t.pages.archivesTitle} | ${config.site.title}`}
+  hrefByLocale={hrefByLocale}
+>
+  <ArchivesBody locale={DEFAULT_LOCALE} posts={sorted} />
+</Layout>

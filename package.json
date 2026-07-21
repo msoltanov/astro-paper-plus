@@ -1,0 +1,117 @@
+{
+  "name": "astro-paper-plus",
+  "type": "module",
+  "version": "7.0.0",
+  "description": "AstroPaper+ — a minimal, responsive, accessible and SEO-friendly Astro blog theme. Originally based on AstroPaper by Sat Naing (MIT).",
+  "packageManager": "pnpm@10.18.1",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=10.18.1"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build:site": "astro build && node scripts/clean-dist-pagefind.mjs && pagefind --site dist && node scripts/copy-pagefind.mjs",
+    "build": "astro check && pnpm build:site",
+    "preview": "astro preview",
+    "sync": "astro sync",
+    "astro": "astro",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "secret:scan": "node scripts/secret-scan.mjs",
+    "test:nginx-headers": "node scripts/test-nginx-headers.mjs",
+    "audit:ci": "node scripts/audit-deps.mjs",
+    "check:og": "node scripts/check-og.mjs",
+    "gate": "node scripts/gate.mjs",
+    "setup:hooks": "node scripts/install-hooks.mjs",
+    "prepare": "node scripts/install-hooks.mjs",
+    "postinstall": "astro sync"
+  },
+  "keywords": [
+    "astro",
+    "astro-paper",
+    "astro-paper-plus",
+    "blog",
+    "theme",
+    "i18n",
+    "typescript",
+    "tailwindcss"
+  ],
+  "homepage": "https://github.com/msoltanov/astro-paper-plus#readme",
+  "bugs": {
+    "url": "https://github.com/msoltanov/astro-paper-plus/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/msoltanov/astro-paper-plus.git"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Mekan Soltanov",
+    "url": "https://github.com/msoltanov"
+  },
+  "pnpm": {
+    "overrides": {
+      "brace-expansion": ">=5.0.6",
+      "js-yaml": "^4.3.0",
+      "yaml": ">=2.8.3"
+    }
+  },
+  "dependencies": {
+    "@astrojs/mdx": "^7.0.3",
+    "@astrojs/rss": "^4.0.19",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.1.3",
+    "dayjs": "^1.11.21",
+    "lodash.kebabcase": "^4.1.1",
+    "mermaid": "^11.16.0",
+    "photoswipe": "^5.4.4",
+    "rehype-callouts": "^2.2.0",
+    "rehype-parse": "^9.0.1",
+    "rehype-slug": "^6.0.0",
+    "rehype-stringify": "^10.0.1",
+    "remark-collapse": "^0.1.2",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "remark-toc": "^9.0.0",
+    "satori": "^0.28.1",
+    "sharp": "^0.35.3",
+    "shiki": "^4.3.1",
+    "sitemap": "^9.0.1",
+    "slugify": "^1.6.9",
+    "tailwindcss": "^4.3.3",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.1.0",
+    "unist-util-visit-parents": "^6.0.2",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@astrojs/markdown-remark": "^7.2.1",
+    "@pagefind/default-ui": "^1.5.2",
+    "@shikijs/transformers": "4.3.1",
+    "@shikijs/types": "^4.3.1",
+    "@tailwindcss/typography": "^0.5.20",
+    "@types/hast": "^3.0.5",
+    "@types/lodash.kebabcase": "^4.1.9",
+    "@types/mdast": "^4.0.4",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.7.0",
+    "eslint-plugin-astro": "^3.0.1",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "happy-dom": "^20.11.0",
+    "pagefind": "^1.5.2",
+    "prettier": "3.9.5",
+    "prettier-plugin-astro": "0.14.1",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "typescript": "^6.0.3",
+    "vfile": "^6.0.3",
+    "vitest": "^4.1.10",
+    "zod": "^4.4.3"
+  }
+}

@@ -1,0 +1,90 @@
+---
+/**
+ * `<AudioEmbed>` — Native `<audio>` wrapper plus provider-aware streaming
+ * embeds (SoundCloud / Spotify) for `.mdx` posts.
+ *
+ * <AudioEmbed src="https://example.com/episode.mp3" title="Episode 1" />
+ * <AudioEmbed provider="soundcloud" id="https://soundcloud.com/foo/bar" />
+ * <AudioEmbed provider="spotify" id="https://open.spotify.com/episode/…" />
+ *
+ * Provider resolution and rendering are shared with `remarkEmbeds` — see
+ * `src/utils/remarkEmbeds.ts`. Adding a new provider in one place lights it
+ * up for both the markdown and MDX paths.
+ */
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import {
+  DEFAULT_PROVIDERS,
+  matchProvider,
+  renderNativeAudio,
+  type Provider,
+} from "@/utils/remarkEmbeds";
+import { tplStr, useTranslations } from "@/i18n";
+
+type Props = {
+  /** Provider id (soundcloud / spotify). Ignored when `src` is supplied. */
+  provider?: "soundcloud" | "spotify";
+  /** Provider-specific resource id (full track URL for SoundCloud, full
+   * episode/track URL for Spotify). Ignored when `src` is supplied. */
+  id?: string;
+  /** Full URL for native media. Renders as an `<audio>` element. */
+  src?: string;
+  /** Optional caption shown beneath the player. */
+  title?: string;
+};
+
+const { provider, id, src, title = "" } = Astro.props;
+const locale = Astro.currentLocale ?? DEFAULT_LOCALE;
+const t = useTranslations(locale);
+
+type Built = { dataEmbed: string; inner: string; titleForAria: string };
+let built: Built;
+
+if (src) {
+  const html = renderNativeAudio(src, title);
+  const inner = html
+    .replace(/^<figure[^>]*>/, "")
+    .replace(/<\/figure>\s*$/, "");
+  built = {
+    dataEmbed: "audio",
+    inner,
+    titleForAria: title || t.media.audioFallbackTitle,
+  };
+} else if (provider && id) {
+  const p = DEFAULT_PROVIDERS.find((x: Provider) => x.id === provider);
+  if (!p) {
+    throw new Error(
+      `<AudioEmbed>: unknown provider "${provider}". Registered providers: ${DEFAULT_PROVIDERS.map((x: Provider) => x.id).join(", ")}.`
+    );
+  }
+  // For SoundCloud/Spotify we accept either a real URL (preferred — feeds
+  // through `matchProvider`) or a raw resource path. To support the latter
+  // we synthesise a minimum URL that satisfies the provider's `match`.
+  const candidateUrl = id.startsWith("http")
+    ? id
+    : `https://${provider}.com/${id}`;
+  const m = matchProvider(candidateUrl, DEFAULT_PROVIDERS);
+  if (!m) {
+    throw new Error(
+      `<AudioEmbed>: provider "${provider}" did not match url "${candidateUrl}".`
+    );
+  }
+  built = {
+    dataEmbed: p.id,
+    inner: p.render(m.id, title || t.media.audioFallbackTitle),
+    titleForAria: title || t.media.audioFallbackTitle,
+  };
+} else {
+  throw new Error(
+    "<AudioEmbed> requires either `src`, or both `provider` and `id`."
+  );
+}
+
+const ariaLabel = tplStr(t.media.audioPlayer, {
+  title: title ? `: ${title}` : "",
+});
+---
+
+<figure data-embed={built.dataEmbed} aria-label={ariaLabel}>
+  <Fragment set:html={built.inner} />
+  {title && <figcaption>{title}</figcaption>}
+</figure>

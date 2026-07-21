@@ -1,0 +1,98 @@
+name: Bug report
+description: Something in the docs, content, build, or runtime is broken.
+title: "\ud83d\udc1b [Bug]: "
+labels: ["bug", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. A maintainer will triage this within a few
+        days. If you can include a reproduction (a minimal example or
+        exact steps), the fix usually goes much faster.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: A clear, one-sentence description of the bug.
+      placeholder: After running `pnpm build`, the /ru/ locale pages return 404.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest set of actions that reproduce the bug.
+      placeholder: |
+        1. Clone the repo
+        2. Run `pnpm install && pnpm build`
+        3. Open `dist/ru/index.html`
+        4. Observe 404
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What you expected to happen instead.
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What actually happens (error messages, screenshots, etc.).
+    validations:
+      required: false
+
+  - type: input
+    id: repro-url
+    attributes:
+      label: Reproduction URL (optional)
+      description: If you have a public reproduction (StackBlitz, CodeSandbox, deployed fork, …), drop the link here.
+      placeholder: https://stackblitz.com/edit/…
+    validations:
+      required: false
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Area
+      description: Where does the bug live?
+      options:
+        - Build / tooling (astro / pnpm / scripts)
+        - Content rendering (Markdown / MDX / layouts)
+        - i18n / localisation
+        - Theming / CSS
+        - Search / Pagefind
+        - OG image / Satori
+        - GitHub workflow / CI
+        - Other (please describe below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Run `pnpm --silent info` or `node -v` and paste below.
+      placeholder: |
+        - Node: v24.8.0
+        - pnpm: 10.18.1
+        - OS: Windows 11
+        - Branch / commit: main @ abc1234
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Relevant context, screenshots, console output, or anything that might help.
+    validations:
+      required: false

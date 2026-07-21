@@ -1,0 +1,119 @@
+---
+/**
+ * Default-locale galleries routes — `src/pages/galleries/[...slug].astro`.
+ *
+ * The `[...slug]` rest parameter is the Astro pattern for *both*
+ * detail pages and a single index page from one file:
+ *   - detail paths: `params.slug: string[]` (one segment-or-more
+ *     per gallery) — `getGallerySlugSegments` produces the array.
+ *   - index path:   `params.slug: undefined` — Astro renders the
+ *     bare directory URL `/galleries/`.
+ *
+ * R1 (issues.md): the previous static `galleries/index.astro`
+ * silently ignored its `getStaticPaths` export (Astro only calls
+ * that function on dynamic routes). Moving the index emission into
+ * this dynamic file makes the `enableGalleries` gate actually drop
+ * the page when the feature is off.
+ */
+import { getCollection, render } from "astro:content";
+import "photoswipe/dist/photoswipe.css";
+import Layout from "@/layouts/Layout.astro";
+import GalleryDetailBody from "@/components/GalleryDetailBody.astro";
+import GalleriesListBody from "@/components/GalleriesListBody.astro";
+import { galleriesByLocale } from "@/utils/galleriesByLocale";
+import { galleryFilter } from "@/utils/galleryFilter";
+import { getSortedGalleries } from "@/utils/getSortedGalleries";
+import { coverImageSrc } from "@/utils/coverImageSrc";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+import { useTranslations } from "@/i18n";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import config from "@/config";
+import { galleryPaths } from "@/utils/featurePages";
+
+export const getStaticPaths = galleryPaths;
+
+const props = Astro.props;
+const isIndex = props.kind === "index";
+const locale = DEFAULT_LOCALE;
+const t = useTranslations(locale);
+
+let indexGalleries: Awaited<ReturnType<typeof getSortedGalleries>> = [];
+let indexHrefByLocale: Readonly<Record<string, string>> = {};
+if (isIndex) {
+  const indexAll = await getCollection("galleries", galleriesByLocale(locale));
+  indexGalleries = getSortedGalleries(indexAll.filter(galleryFilter));
+  indexHrefByLocale = hrefByLocaleForStaticRoute(
+    "galleries",
+    Astro.site?.origin ?? new URL(Astro.url).origin,
+    locale
+  );
+}
+
+// `await render(entry).Content` is the canonical Astro Markdown
+// component — its type is intentionally a narrow internal that TS
+// can't recognise through `Awaited<ReturnType<...>>`. Use `any`
+// here so the template `<DetailContent />` call resolves cleanly.
+let DetailContent: any = null;
+if (!isIndex) {
+  const rendered = await render(props.gallery);
+  DetailContent = rendered.Content;
+}
+
+const detailGallery = isIndex ? null : props.gallery;
+const detailSiblings = isIndex ? null : props.siblings;
+const detailCoverRaw = detailGallery?.data.coverImage
+  ? coverImageSrc(detailGallery.data.coverImage)
+  : undefined;
+const detailFirstSrc = detailGallery?.data.images[0]?.src?.src;
+const detailOgImage =
+  detailCoverRaw ??
+  (typeof detailFirstSrc === "string" ? detailFirstSrc : undefined);
+---
+
+{
+  isIndex && (
+    <Layout
+      title={`${t.pages.galleriesTitle} | ${config.site.title}`}
+      hrefByLocale={indexHrefByLocale}
+    >
+      <GalleriesListBody {locale} galleries={indexGalleries} />
+    </Layout>
+  )
+}
+{
+  !isIndex && detailGallery && detailSiblings && (
+    <Layout
+      title={`${detailGallery.data.title} | ${config.site.title}`}
+      description={detailGallery.data.description}
+      ogImage={
+        detailOgImage
+          ? new URL(detailOgImage, Astro.url.origin).href
+          : undefined
+      }
+      availableLocales={detailSiblings.availableLocales}
+      hrefByLocale={detailSiblings.hrefByLocale}
+    >
+      <GalleryDetailBody {locale} gallery={detailGallery}>
+        <DetailContent />
+      </GalleryDetailBody>
+    </Layout>
+  )
+}
+
+<!-- PhotoSwipe v5 — gallery lightbox.
+  - CSS is imported via the page frontmatter and bundled with the page stylesheet (no CDN).
+  - JS is dynamically imported via the script below and lazy-loaded by PhotoSwipe itself on first open (see src/scripts/galleryLightbox.ts).
+  - Bundled unconditionally; `initGalleryLightbox` is a no-op when the DOM lacks `.pswp` so the index (no images) path doesn't bloat runtime work.
+-->
+<script>
+  import {
+    initGalleryLightbox,
+    destroyGalleryLightbox,
+  } from "@/scripts/galleryLightbox";
+  initGalleryLightbox();
+
+  document.addEventListener("astro:after-swap", () => {
+    initGalleryLightbox();
+  });
+  document.addEventListener("astro:before-swap", destroyGalleryLightbox);
+</script>

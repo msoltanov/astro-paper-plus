@@ -1,0 +1,46 @@
+# .dockerignore — exclude everything that isn't needed to build the site.
+
+# Build / cache directories
+.astro/
+dist/
+node_modules/
+coverage/
+
+# Test output / temp gate logs
+*.log
+.tmp-*.local.log
+
+# Git + IDE noise
+.git/
+.gitignore
+.gitattributes
+.husky/
+.legacy-i18n-cleanup/
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# AI-tool scaffolding (gitignored but explicit here too)
+.commandcode/
+.harness/
+
+# Astro cache directory — the .astro/ entry above covers it; the
+# old `*.astro` pattern accidentally matched every `.astro` source
+# file as well as the cache directory, which made the pattern
+# misleading without actually excluding the source files we want.
+# Replaced with the explicit directory match above.
+
+# CI files (only useful when running GitHub Actions, not when
+# building in Docker).
+.github/
+
+# Docker self-reference
+Dockerfile
+.dockerignore
+compose.yaml
+
+# The static-page output (`public/`) is included on purpose — it
+# carries favicon.svg and the user-uploaded assets that get copied
+# into `dist/` at build time.

@@ -1,0 +1,146 @@
+import type { UIStrings } from "../types";
+
+export default {
+  nav: {
+    home: "Главная",
+    posts: "Записи",
+    projects: "Проекты",
+    galleries: "Галереи",
+    archives: "Архив",
+    about: "О сайте",
+    search: "Поиск",
+    tags: "Теги",
+  },
+  post: {
+    publishedAt: "Опубликовано",
+    updatedAt: "Обновлено",
+    sharePostIntro: "Поделиться записью:",
+    sharePostOn: "Поделиться записью в {{platform}}",
+    sharePostViaEmail: "Поделиться записью по e-mail",
+    tagLabel: "Теги",
+    backToTop: "Наверх",
+    goBack: "Назад",
+    editPage: "Редактировать страницу",
+    previousPost: "Предыдущая запись",
+    nextPost: "Следующая запись",
+    copy: "Копировать",
+    copied: "Скопировано",
+    copyFailed: "Не удалось скопировать",
+    onThisPage: "На этой странице",
+  },
+  project: {
+    techLabel: "Стек",
+    liveDemo: "Демо",
+    sourceCode: "Исходный код",
+    backToList: "К проектам",
+    statusShipped: "Завершён",
+    statusInProgress: "В работе",
+    statusArchived: "В архиве",
+    readMore: "Читать дальше",
+    viewProject: "Открыть проект",
+  },
+  gallery: {
+    ofLabel: "{{index}} из {{total}}",
+    // CLDR plural forms for Russian — uses all four categories because
+    // Russian distinguishes one (1, 21, 31...) / few (2-4, 22-24...) /
+    // many (0, 5-20, 25-30...) / other (fractional). The previous
+    // hand-rolled `photoCountOne` only handled the singular-vs-rest
+    // distinction and produced wrong forms for the "few" range.
+    photoCount: {
+      one: "{{count}} фотография",
+      few: "{{count}} фотографии",
+      many: "{{count}} фотографий",
+      other: "{{count}} фото",
+    },
+    viewGallery: "Открыть галерею",
+    backToList: "К галереям",
+    openGallery: "Открыть галерею: {{title}}",
+    zoomImage: "Увеличить изображение: {{alt}}",
+    zoomImageNoAlt: "Увеличить изображение",
+    noCover: "Без обложки",
+  },
+  pagination: {
+    prev: "Назад",
+    next: "Вперёд",
+    page: "Страница",
+    nav: "Страницы",
+    pageCount: "{{current}} из {{total}}",
+  },
+  home: {
+    socialLinks: "Социальные сети",
+    featured: "Избранное",
+    recentPosts: "Свежие записи",
+    allPosts: "Все записи",
+    greeting: "Добро пожаловать",
+    rssFeed: "RSS-лента",
+    heroIntro:
+      "AstroPaper+ — минималистичная, отзывчивая, доступная и SEO-дружественная тема блога на Astro, форк AstroPaper с поддержкой нескольких языков (en/ru/tr) и дополнительными улучшениями. Тема следует лучшим практикам и доступна по умолчанию. Светлая и тёмная темы поддерживаются из коробки, можно настроить и дополнительные цветовые схемы.",
+    heroCtaLead: "Читайте записи в блоге или загляните в",
+    readme: "README",
+    heroCtaTail: ", чтобы узнать больше.",
+  },
+  footer: {
+    copyright: "Авторские права",
+    allRightsReserved: "Все права защищены.",
+  },
+  pages: {
+    homeTitle: "Главная",
+    homeDesc:
+      "AstroPaper+ — минимальная, адаптивная, доступная и SEO-оптимизированная тема блога на Astro.",
+    postsTitle: "Записи",
+    postsDesc: "Все опубликованные статьи.",
+    projectsTitle: "Проекты",
+    projectsDesc: "То, что я сделал.",
+    projectsEmpty: "Проектов пока нет.",
+    galleriesTitle: "Галереи",
+    galleriesDesc: "Подборки фото из поездок, событий и обычных прогулок.",
+    galleriesEmpty: "Галерей пока нет.",
+    archivesTitle: "Архив",
+    tagsTitle: "Теги",
+    tagsDesc: "Просмотреть записи по тегу.",
+    searchTitle: "Поиск",
+    searchDesc: "Поиск по статьям ...",
+    feedTitle: "AstroPaper+",
+    feedDescription:
+      "AstroPaper+ — минимальная, адаптивная, доступная и SEO-оптимизированная тема блога на Astro (AstroPaper+ v7). Основано на AstroPaper от Sat Naing (MIT).",
+    feedItemFallback:
+      "AstroPaper+ — минимальная, адаптивная, доступная и SEO-оптимизированная тема блога на Astro (AstroPaper+ v7). Основано на AstroPaper от Sat Naing (MIT).",
+  },
+  a11y: {
+    skipToContent: "Перейти к содержимому",
+    openMenu: "Открыть меню",
+    closeMenu: "Закрыть меню",
+    toggleTheme: "Сменить тему",
+    searchPlaceholder: "Поиск по записям...",
+    noResults: "Ничего не найдено",
+    goToPreviousPage: "Перейти на предыдущую страницу",
+    goToNextPage: "Перейти на следующую страницу",
+    languageSwitcher: "Переключатель языка",
+    notTranslated: "{{label}} — нет перевода",
+    sendEmail: "Написать e-mail: {{title}}",
+    socialOn: "{{title}} в {{platform}}",
+    readMoreAbout: "Читать дальше: {{title}}",
+    zoomImage: "Увеличить изображение: {{alt}}",
+    zoomImageNoAlt: "Увеличить изображение",
+    imagePreview: "Просмотр изображения: {{alt}}",
+    imagePreviewNoAlt: "Просмотр изображения",
+    closeImagePreview: "Закрыть просмотр изображения",
+  },
+  media: {
+    cannotPlayVideo:
+      "Ваш браузер не поддерживает встроенное видео. Скачайте его по ссылке {{src}}.",
+    cannotPlayAudio:
+      "Ваш браузер не поддерживает встроенное аудио. Скачайте его по ссылке {{src}}.",
+    videoPlayer: "Видеоплеер {{provider}}",
+    audioPlayer: "Аудиоплеер{{title}}",
+    audioFallbackTitle: "Встроенное аудио",
+  },
+  notFound: {
+    title: "404 — страница не найдена",
+    message: "Страница не найдена",
+    goHome: "На главную",
+  },
+  link: {
+    opensInNewTab: "открывается в новой вкладке",
+  },
+} satisfies UIStrings;

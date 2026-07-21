@@ -1,0 +1,50 @@
+---
+/**
+ * Shared `PostsIndexBody` — used by BOTH:
+ *   - `src/pages/posts/[...page].astro`           (default locale)
+ *   - `src/pages/[locale]/posts/[...page].astro`  (non-default locales)
+ *
+ * The two route files handle their respective `getStaticPaths` (with
+ * different pagination scopes — see those files for the difference)
+ * and pass the active locale + page slice into this shared body.
+ *
+ * Pagination hreflang (all pages of the set → posts index root per
+ * locale) is wired in the route files, NOT here, because the route
+ * files are the ones that know which logical page family they belong
+ * to.
+ */
+import { type CollectionEntry } from "astro:content";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import Main from "@/components/Main.astro";
+import Card from "@/components/Card.astro";
+import Pagination from "@/components/Pagination.astro";
+import { useTranslations } from "@/i18n";
+import type { Page } from "astro";
+
+type Post = CollectionEntry<"posts">;
+
+interface Props {
+  locale: string;
+  page: Page<Post>;
+}
+
+const { locale, page } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<Breadcrumb />
+<Main pageTitle={t.pages.postsTitle} pageDesc={t.pages.postsDesc}>
+  <ul>
+    {
+      page.data.map(data => {
+        const entry = data as Post;
+        return (
+          <Fragment>
+            <Card {...entry} />
+          </Fragment>
+        );
+      })
+    }
+  </ul>
+  <Pagination {page} />
+</Main>

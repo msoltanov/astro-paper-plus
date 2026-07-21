@@ -1,0 +1,25 @@
+---
+import { getRelativeLocaleUrl } from "astro:i18n";
+import SearchBody from "@/components/SearchBody.astro";
+import { LOCALES, DEFAULT_LOCALE, localeParam } from "@/i18n/locales";
+import config from "@/config";
+
+export async function getStaticPaths() {
+  return LOCALES.filter(l => l !== DEFAULT_LOCALE).map(locale => ({
+    params: { locale },
+  }));
+}
+
+const locale = localeParam(Astro.params.locale);
+
+// Redirect to 404 page if `search` feature is not enabled
+if (config.features.search !== "pagefind") {
+  return Astro.rewrite(getRelativeLocaleUrl(locale, "404"));
+}
+
+const backUrl = config.features.showBackButton
+  ? `${Astro.url.pathname}`
+  : getRelativeLocaleUrl(locale, "");
+---
+
+<SearchBody locale={locale} backUrl={backUrl} />

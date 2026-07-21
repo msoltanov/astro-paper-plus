@@ -1,0 +1,66 @@
+/*
+  # The non-CSP header lines below mirror `NGINX_STATIC_HEADER_LINES`
+  # in `src/integrations/cloudflareHeaders.ts` — keep both in sync.
+  # When the HSTS value changes (e.g. shorter max-age during
+  # pre-launch testing), update both files.
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), picture-in-picture=(self), fullscreen=(self), accelerometer=(), ambient-light-sensor=(), autoplay=(), battery=(), clipboard-read=(), clipboard-write=(), display-capture=(), document-domain=(), gamepad=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), midi=(), otp-credentials=(), payment=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), usb=(), web-share=(), xr-spatial-tracking=()
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  # `credentialless` (not `require-corp`) so the YouTube/Vimeo/Loom/Bilibili/
+  # Twitch/SoundCloud/Spotify embeds from `src/utils/remarkEmbeds.ts` continue
+  # to render in COEP-isolated browsers without each upstream needing to
+  # send `Cross-Origin-Resource-Policy: cross-origin` (only YouTube/Vimeo
+  # reliably do; the rest would silently fail under `require-corp`).
+  Cross-Origin-Embedder-Policy: credentialless
+
+  # CSP — three trade-offs that need a long comment so future editors
+  # don't strip them out:
+  #
+  # 1. `style-src 'self' 'unsafe-inline'`. The hard truth: Shiki and
+  #    Astro view-transitions both write per-token / per-element
+  #    inline `style="..."` attributes (e.g. `<span style="--shiki-light:
+  #    #7F7F7F">`) that CSP cannot hash — there is no per-attribute
+  #    hash scheme in any browser. The narrower `style-src-attr` /
+  #    `style-src-elem` split that would let us hash `<style>` blocks
+  #    while permitting attribute styles is supported by only one
+  #    shipping engine (Chromium) at the time of writing, so a
+  #    Firefox / Safari visitor would see a blank code block under
+  #    that policy. `'unsafe-inline'` keeps the syntax highlighting
+  #    visible everywhere; the CSS-keylogging exfiltration vector
+  #    the strict policy is meant to close requires an XSS first,
+  #    and the rest of the CSP (default-src 'self', object-src
+  #    'none', frame-ancestors 'none', no 'unsafe-eval') closes
+  #    the script-side XSS surface. Astro 7's own `security.csp`
+  #    integration is intentionally NOT enabled here for the same
+  #    reason — it emits a `<meta http-equiv="content-security-policy">`
+  #    that would double-enforce the strict `style-src` against the
+  #    inline attributes and silently disable Shiki in production.
+  #
+  # 2. `script-src` carries a build-time substitution placeholder token
+  #    on the CSP line below (the literal token is exported as
+  #    `CSP_HASH_PLACEHOLDER` from `src/integrations/cloudflareHeaders.ts` —
+  #    we deliberately do NOT write the literal anywhere in this file
+  #    other than the CSP line itself, because the integration's
+  #    placeholder-substitution pass walks the file line-by-line and
+  #    substitutes the literal everywhere it appears, including inside
+  #    comment blocks — producing a confusing `dist/_headers` whose
+  #    hash list ends up embedded inside a comment instead of the CSP
+  #    line. The substitution is restricted to lines starting with
+  #    `Content-Security-Policy:` so the comment-scope match can't
+  #    happen. The integration walks `dist/*.html`, sha256-hashes every
+  #    inline `<script>` body, and substitutes the placeholder with a
+  #    list of `'sha256-<base64>'` tokens at the end of every build.
+  #    DO NOT remove the placeholder line. Note that the literal
+  #    substitution token uses double-underscores (see the line below)
+  #    while this comment refers to the exported CONSTANT name in
+  #    square brackets (e.g. `[CSP_HASH_PLACEHOLDER]`) — the two forms
+  #    can never collide because the bracketed form is the JS identifier
+  #    and the underscored form is the runtime token.
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data: https://images.pexels.com https://user-images.githubusercontent.com https://github.com https://satnaing.dev https://res.cloudinary.com https://i.ibb.co https://images.unsplash.com https://astro.build; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' __CSP_SCRIPT_HASHES_INJECTED_BY_BUILD__; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://www.loom.com https://player.bilibili.com https://player.twitch.tv https://w.soundcloud.com https://open.spotify.com
+
+/*.png
+  X-Content-Type-Options: nosniff

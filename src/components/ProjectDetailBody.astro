@@ -1,0 +1,163 @@
+---
+/**
+ * `ProjectDetailBody` — shared body for the per-locale project detail page.
+ *
+ * Used by BOTH:
+ *   - `src/pages/projects/[...slug].astro`           (default locale)
+ *   - `src/pages/[locale]/projects/[...slug].astro`  (non-default locales)
+ *
+ * The two route files exist only as thin `getStaticPaths` wrappers
+ * around this component — they pass the resolved `CollectionEntry` and
+ * the rendered MDX content via the default slot. Mirrors the
+ * `GalleryDetailBody.astro` / `PostDetailBody.astro` route-dedup
+ * pattern (see C3 in issues.md).
+ *
+ * The `back-to-list` link and the i18n status labels are computed from
+ * the supplied `locale` so the body is locale-agnostic.
+ */
+import type { CollectionEntry } from "astro:content";
+import { getRelativeLocaleUrl } from "astro:i18n";
+import Datetime from "@/components/Datetime.astro";
+import ExternalLink from "@/components/ExternalLink.astro";
+import { projectStatusLabel } from "@/utils/projectStatusLabel";
+import { useTranslations } from "@/i18n";
+import config from "@/config";
+
+interface Props {
+  locale: string;
+  project: CollectionEntry<"projects">;
+}
+
+const { locale, project } = Astro.props;
+const t = useTranslations(locale);
+const {
+  title,
+  description,
+  tech,
+  demoUrl,
+  sourceUrl,
+  pubDatetime,
+  modDatetime,
+  timezone,
+  role,
+  status,
+} = project.data;
+
+// `demoUrl` accepts an absolute URL or a site-relative path (see the
+// projects schema in `content.config.ts`). The schema rejects
+// protocol-relative `//host`, so a leading `/` here reliably means
+// same-site. Internal paths go through `getRelativeLocaleUrl` — the
+// same treatment as the back-to-list link below — so a locale-agnostic
+// `/` in frontmatter resolves to `/ru/` on the Russian page rather
+// than dumping the reader on the default locale.
+const demoIsInternal = demoUrl?.startsWith("/") ?? false;
+const demoHref =
+  demoIsInternal && demoUrl
+    ? getRelativeLocaleUrl(locale, demoUrl.replace(/^\//, ""))
+    : demoUrl;
+---
+
+<main
+  id="main-content"
+  tabindex="-1"
+  class:list={["app-layout", { "mt-8": !config.features.showBackButton }]}
+>
+  <h1 class="text-accent inline-block text-2xl font-bold sm:text-3xl">
+    {title}
+  </h1>
+  <div
+    class="text-muted-foreground my-2 flex flex-wrap items-center gap-2 text-sm"
+  >
+    <Datetime
+      {pubDatetime}
+      {modDatetime}
+      {timezone}
+      size="lg"
+      variant="project"
+    />
+    {role && <span class="bg-muted rounded px-2 py-0.5 text-xs">{role}</span>}
+    <span
+      class:list={[
+        "rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wider uppercase",
+        status === "shipped"
+          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+          : status === "in-progress"
+            ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+            : "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400",
+      ]}
+    >
+      {projectStatusLabel(status, t.project)}
+    </span>
+  </div>
+  <p class="my-4 text-lg italic">{description}</p>
+  {
+    tech.length > 0 && (
+      <div class="my-4">
+        {" "}
+        <span class="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
+          {" "}
+          {t.project.techLabel}{" "}
+        </span>{" "}
+        <ul class="mt-1 flex flex-wrap gap-1.5">
+          {" "}
+          {tech.map(t => (
+            <li class="bg-muted rounded px-2 py-0.5 text-xs">{t}</li>
+          ))}{" "}
+        </ul>{" "}
+      </div>
+    )
+  }
+  <article
+    class:list={[
+      "mt-6 w-full",
+      "app-prose max-w-app",
+      "prose-pre:bg-(--shiki-light-bg) dark:prose-pre:bg-(--shiki-dark-bg)",
+    ]}
+  >
+    <slot />
+  </article>
+  <div class="my-6 flex flex-wrap gap-3">
+    {
+      demoUrl &&
+        (demoIsInternal ? (
+          // Same-site: a plain anchor. Routing this through
+          // `ExternalLink` would force the new-tab target and announce
+          // "(opens in new tab)" to screen readers — both false for an
+          // in-site link. The ↗ affordance is dropped for the same
+          // reason: it conventionally signals leaving the site.
+          <a
+            href={demoHref}
+            class="bg-accent text-accent-foreground hover:bg-accent/90 rounded px-4 py-2 text-sm font-medium no-underline"
+          >
+            {t.project.liveDemo}
+          </a>
+        ) : (
+          <ExternalLink
+            href={demoHref}
+            class="bg-accent text-accent-foreground hover:bg-accent/90 rounded px-4 py-2 text-sm font-medium no-underline"
+          >
+            {" "}
+            {t.project.liveDemo} ↗{" "}
+          </ExternalLink>
+        ))
+    }
+    {
+      sourceUrl && (
+        <ExternalLink
+          href={sourceUrl}
+          class="border-border bg-background hover:border-accent rounded border px-4 py-2 text-sm font-medium no-underline"
+        >
+          {" "}
+          {t.project.sourceCode} ↗{" "}
+        </ExternalLink>
+      )
+    }
+    <a
+      href={getRelativeLocaleUrl(locale, "projects")}
+      class="text-muted-foreground hover:text-foreground self-center text-sm no-underline"
+    >
+      ← {t.project.backToList}
+    </a>
+  </div>
+  <hr class="my-8 border-dashed" />
+</main>

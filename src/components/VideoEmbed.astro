@@ -1,0 +1,58 @@
+---
+/**
+ * `<VideoEmbed>` — Provider-aware video wrapper for `.mdx` posts.
+ *
+ * Authors who want full control over captions, layout, or to mix-and-match
+ * providers use this directly in `.mdx`:
+ *
+ *   import VideoEmbed from "../../components/VideoEmbed.astro";
+ *
+ *   <VideoEmbed provider="youtube" id="dQw4w9WgXcQ" title="Demo" />
+ *   <VideoEmbed src="https://cdn.example.com/clip.mp4" title="Recording" />
+ *
+ * The provider registry is shared with `remarkEmbeds` — see
+ * `src/utils/remarkEmbeds.ts`. Adding a new provider in one file lights it
+ * up for both the markdown (bare-URL) and MDX (component) paths.
+ */
+import { DEFAULT_PROVIDERS, renderNativeVideo } from "@/utils/remarkEmbeds";
+type Props = {
+  provider?: "youtube" | "vimeo" | "loom" | "bilibili" | "twitch";
+  id?: string;
+  src?: string;
+  title?: string;
+};
+const props = Astro.props as Props;
+const provider = props.provider;
+const id = props.id;
+const src = props.src;
+const title = props.title ?? "";
+type Built = { dataEmbed: string; inner: string };
+let built: Built;
+if (src) {
+  const html = renderNativeVideo(src, title);
+  const inner = html
+    .replace(/^<figure[^>]*>/, "")
+    .replace(/<\/figure>\s*$/, "");
+  built = { dataEmbed: "video", inner };
+} else if (provider && id) {
+  const p = DEFAULT_PROVIDERS.find(x => x.id === provider);
+  if (!p) {
+    throw new Error(
+      `<VideoEmbed>: unknown provider "${provider}". Registered providers: ${DEFAULT_PROVIDERS.map(x => x.id).join(", ")}.`
+    );
+  }
+  built = {
+    dataEmbed: p.id,
+    inner: p.render(id, title || `${p.name} video player`),
+  };
+} else {
+  throw new Error(
+    "<VideoEmbed> requires either `src`, or both `provider` and `id`."
+  );
+}
+---
+
+<figure data-embed={built.dataEmbed}>
+  <Fragment set:html={built.inner} />
+  {title !== "" && <figcaption>{title}</figcaption>}
+</figure>

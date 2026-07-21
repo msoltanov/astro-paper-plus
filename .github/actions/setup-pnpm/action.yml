@@ -1,0 +1,38 @@
+# Composite action: pnpm setup + frozen-lockfile install.
+#
+# Replaces the per-job `pnpm/action-setup@v4` →
+# `actions/setup-node@v4` (cache: pnpm) → `pnpm install --frozen-lockfile`
+# block that used to repeat across every CI job. Centralising lets us
+# change the Node / pnpm versions in one place AND share the pnpm store
+# cache across jobs via `actions/cache@v4`.
+#
+# Inputs:
+#   - node-version (default: 24) — matches `package.json#engines.node`
+#   - pnpm-cache-key-prefix (default: pnpm) — cache key prefix; pass a
+#     per-job suffix if you ever need to bust the store for one job
+name: Setup pnpm + install
+description: pnpm setup + actions/setup-node + frozen-lockfile install, shared across CI jobs.
+inputs:
+  node-version:
+    description: "Node.js version (matches `package.json#engines.node`)."
+    required: false
+    default: "24"
+  pnpm-cache-key-prefix:
+    description: "Cache-key prefix for the shared pnpm store."
+    required: false
+    default: "pnpm"
+runs:
+  using: "composite"
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+    - name: Setup Node
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

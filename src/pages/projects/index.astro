@@ -1,0 +1,37 @@
+---
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import ProjectsListBody from "@/components/ProjectsListBody.astro";
+import { projectsByLocale } from "@/utils/projectsByLocale";
+import { projectFilter } from "@/utils/projectFilter";
+import { getSortedProjects } from "@/utils/getSortedProjects";
+import { useTranslations } from "@/i18n";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+import config from "@/config";
+
+// Default-locale projects landing.
+const locale = Astro.currentLocale ?? DEFAULT_LOCALE;
+const t = useTranslations(locale);
+// P2-5: replace the inlined 12-line sort with `getSortedProjects`
+// so the featured → order → date-desc policy lives in one place.
+// The locale-prefixed route at `src/pages/[locale]/projects/index.astro`
+// uses the same helper for the same reason.
+const projects = getSortedProjects(
+  (await getCollection("projects", projectsByLocale(DEFAULT_LOCALE))).filter(
+    projectFilter
+  )
+);
+const hrefByLocale = hrefByLocaleForStaticRoute(
+  "projects",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  locale
+);
+---
+
+<Layout
+  title={`${t.pages.projectsTitle} | ${config.site.title}`}
+  hrefByLocale={hrefByLocale}
+>
+  <ProjectsListBody {locale} {projects} />
+</Layout>

@@ -1,0 +1,24 @@
+---
+import { getRelativeLocaleUrl } from "astro:i18n";
+import SearchBody from "@/components/SearchBody.astro";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import config from "@/config";
+
+// Default-locale route. Non-default locales use
+// src/pages/[locale]/search.astro. The shared body lives in
+// `SearchBody.astro` — see that file's header comment. The Pagefind
+// CSS import was moved into the shared body (M18) so the dependency
+// is co-located with the JS consumer.
+const locale = Astro.currentLocale ?? DEFAULT_LOCALE;
+
+// Redirect to 404 page if `search` feature is not enabled
+if (config.features.search !== "pagefind") {
+  return Astro.rewrite(getRelativeLocaleUrl(locale, "404"));
+}
+
+const backUrl = config.features.showBackButton
+  ? `${Astro.url.pathname}`
+  : getRelativeLocaleUrl(locale, "");
+---
+
+<SearchBody locale={locale} backUrl={backUrl} />

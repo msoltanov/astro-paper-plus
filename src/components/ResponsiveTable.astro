@@ -1,0 +1,89 @@
+---
+type Props = {
+  class?: string;
+  variant?:
+    /** No borders */
+    | "minimal"
+    /** 1st, 3rd, 5th ... body rows tinted — classic zebra. */
+    | "striped"
+    /** 1st, 3rd, 5th ... body rows tinted + no borders. */
+    | "striped-minimal";
+};
+
+const { class: className, variant } = Astro.props;
+
+const variantClasses = {
+  minimal: "[&_td]:border-0 [&_th]:border-0",
+  striped: "[&_tbody_tr]:odd:bg-muted/25",
+};
+---
+
+<div
+  data-table-variant={variant}
+  class:list={[
+    "[&_table]:my-0 [&_table]:min-w-xl",
+    variant === "minimal" && variantClasses.minimal,
+    variant === "striped" && variantClasses.striped,
+    variant === "striped-minimal" &&
+      `${variantClasses.minimal} ${variantClasses.striped}`,
+    className,
+  ]}
+>
+  <div class="table-scroll relative w-full overflow-x-auto">
+    <slot />
+  </div>
+</div>
+
+<script is:inline data-astro-rerun>
+  // Mark `.table-scroll` containers with `data-at-start` /
+  // `data-at-end` so the CSS scroll-shadow on each edge only renders
+  // when there is actually more content to scroll toward. Resize-safe:
+  // we re-evaluate on layout changes too (font load, theme toggle,
+  // viewport resize, etc.).
+  (function setupTableScrollIndicators() {
+    const containers = document.querySelectorAll(".table-scroll");
+    if (!containers.length) return;
+    const update = el => {
+      const max = el.scrollWidth - el.clientWidth;
+      const x = el.scrollLeft;
+      el.toggleAttribute("data-at-start", x <= 1);
+      el.toggleAttribute("data-at-end", x >= max - 1);
+    };
+    containers.forEach(el => {
+      update(el);
+      // Guard against accumulating scroll listeners across View Transition
+      // swaps: `<script is:inline data-astro-rerun>` re-runs on every
+      // page swap, and without the flag every swap would attach a fresh
+      // listener. The `_scrollBound` flag mirrors the pattern used by
+      // LocaleSwitcher / BackToTop; no matching cleanup is needed
+      // because old-DOM listeners get GC'd when the swapped-out element
+      // is discarded — the resize observer is the one we explicitly
+      // disconnect on `astro:before-swap` (lines below) because
+      // `ResizeObserver` retains a strong reference to the element.
+      if (!el._scrollBound) {
+        el._scrollBound = true;
+        el.addEventListener("scroll", () => update(el), { passive: true });
+      }
+      if (typeof ResizeObserver !== "undefined") {
+        const ro = new ResizeObserver(() => update(el));
+        ro.observe(el);
+        el._tableResizeObserver = ro;
+      }
+    });
+  })();
+
+  // Register the cleanup listener once, not per-page-swap.
+  if (!window.__tableScrollBound) {
+    window.__tableScrollBound = true;
+    document.addEventListener("astro:before-swap", () => {
+      const cells = document.querySelectorAll(".table-scroll");
+      for (let i = 0; i < cells.length; i++) {
+        const el = cells[i];
+        if (el._tableResizeObserver) {
+          el._tableResizeObserver.disconnect();
+          el._tableResizeObserver = null;
+        }
+      }
+    });
+  }
+</script>

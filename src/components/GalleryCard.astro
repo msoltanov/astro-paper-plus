@@ -1,0 +1,108 @@
+---
+import type { CollectionEntry } from "astro:content";
+import type { ImageMetadata } from "astro";
+import IconArrowRight from "@/assets/icons/IconArrowRight.svg";
+import { getGalleryUrl } from "@/utils/getGalleryPaths";
+import { coverImageSrc } from "@/utils/coverImageSrc";
+import { useTranslations, tplStr, plural } from "@/i18n";
+type Props = {
+  /** Locale code — used to localize links. */ locale: string;
+  /** Gallery entries to render. */ galleries: CollectionEntry<"galleries">[];
+  /**
+   * Mark the *first* card's cover image as the LCP candidate
+   * (`loading="eager"` + `fetchpriority="high"`). Set this on the
+   * gallery listing page, where the first card is the most likely
+   * LCP element; leave it off in sidebars or other secondary uses.
+   * Mirrors the LCP escape hatch used by `rehypeLazyImages` for body
+   * images so the whole site has one rule. Default: false.
+   */
+  priorityFirst?: boolean;
+};
+const { locale, galleries, priorityFirst = false } = Astro.props;
+const t = useTranslations(locale);
+function formatCount(n: number) {
+  // CLDR-aware pluralization — picks the right form per locale
+  // (e.g. "1 фотография" vs "2 фотографии" vs "5 фотографий" for Russian).
+  return plural(locale, n, t.gallery.photoCount);
+}
+---
+
+<ul
+  data-galleries-list
+  class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+>
+  {
+    galleries.map((gallery, idx) => {
+      const url = getGalleryUrl(
+        gallery.id,
+        gallery.filePath as string | undefined,
+        locale,
+        gallery.data.slug
+      );
+      const count = gallery.data.images.length;
+      const cover: ImageMetadata | undefined = gallery.data.coverImage;
+      const coverSrc = coverImageSrc(cover);
+      // LCP escape hatch — first card on the listing page is the most
+      // likely Largest Contentful Paint element, so it must NOT be
+      // lazy-loaded and should fetch with high priority.
+      const isLcp = priorityFirst && idx === 0;
+      return (
+        <li class="border-border bg-card text-card-foreground hover:border-accent/40 hover:bg-card/80 group flex flex-col overflow-hidden rounded-lg border transition">
+          {" "}
+          <a
+            href={url}
+            class="focus-outline flex h-full flex-col"
+            aria-label={tplStr(t.gallery.openGallery, {
+              title: gallery.data.title,
+            })}
+          >
+            {" "}
+            {cover ? (
+              <img
+                src={coverSrc}
+                alt={gallery.data.title}
+                width={cover.width}
+                height={cover.height}
+                loading={isLcp ? "eager" : "lazy"}
+                decoding="async"
+                fetchpriority={isLcp ? "high" : undefined}
+                class="bg-muted aspect-[4/3] w-full object-cover motion-safe:transition-transform motion-safe:group-hover:scale-[1.02]"
+              />
+            ) : (
+              <div
+                aria-hidden="true"
+                class="bg-muted text-muted-foreground flex aspect-[4/3] w-full items-center justify-center text-sm"
+              >
+                {" "}
+                {t.gallery.noCover}{" "}
+              </div>
+            )}{" "}
+            <div class="flex flex-col gap-2 p-5">
+              {" "}
+              <h3 class="decoration-none text-lg leading-tight font-semibold group-hover:underline group-focus-visible:underline">
+                {" "}
+                {gallery.data.title}{" "}
+              </h3>{" "}
+              <p class="text-muted-foreground text-sm">
+                {" "}
+                {gallery.data.description}{" "}
+              </p>{" "}
+              <div class="text-muted-foreground mt-1 flex items-center justify-between text-xs">
+                {" "}
+                <span>{formatCount(count)}</span>{" "}
+                <span class="text-accent inline-flex items-center gap-1">
+                  {" "}
+                  {t.gallery.viewGallery}{" "}
+                  <IconArrowRight
+                    aria-hidden="true"
+                    class="size-4 rtl:-rotate-180"
+                  />{" "}
+                </span>{" "}
+              </div>{" "}
+            </div>{" "}
+          </a>{" "}
+        </li>
+      );
+    })
+  }
+</ul>

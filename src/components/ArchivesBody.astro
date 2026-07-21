@@ -1,0 +1,81 @@
+---
+/**
+ * `ArchivesBody` — shared body for the `/archives/` page.
+ *
+ * Used by BOTH:
+ *   - `src/pages/archives.astro`           (default locale, unprefixed URL)
+ *   - `src/pages/[locale]/archives.astro`  (non-default locales, prefixed URL)
+ *
+ * Renders posts grouped by year, newest year first, with the most
+ * recent post at the top of each year. The list flattens the typical
+ * "what did this site ship in YYYY?" question into a single scroll —
+ * mirrors the upstream AstroPaper archives route.
+ *
+ * Timezone handling
+ * -----------------
+ * Posts whose `pubDatetime` carries an explicit offset (or whose
+ * per-post `timezone` differs from UTC) are grouped by the
+ * **calendar day in that timezone**, not the UTC day. A post stamped
+ * `2026-01-01T00:30:00+05:00` reads as `2025-12-31T19:30:00Z` in UTC;
+ * reading `getUTCFullYear()` / `getUTCDate()` would put it under
+ * 2025 and the visible date would be `12/31` instead of `01/01`.
+ * The grouping math lives in `src/utils/archivesGrouping.ts` so the
+ * behaviour is unit-testable without booting Astro.
+ */
+import { type CollectionEntry } from "astro:content";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import Main from "@/components/Main.astro";
+import { getPostUrl } from "@/utils/getPostPaths";
+import { parseDateInTz } from "@/utils/parseDateInTz";
+import { groupPostsByYearInTz } from "@/utils/archivesGrouping";
+import { useTranslations } from "@/i18n";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+
+type Post = CollectionEntry<"posts">;
+
+interface Props {
+  locale: string;
+  posts: Post[];
+}
+
+const { locale, posts } = Astro.props;
+const t = useTranslations(Astro.currentLocale ?? locale ?? DEFAULT_LOCALE);
+const sortedYears = groupPostsByYearInTz(posts);
+---
+
+<Breadcrumb />
+<Main pageTitle={t.pages.archivesTitle}>
+  {
+    sortedYears.map(bucket => (
+      <section class="my-6">
+        <h2 class="text-accent text-2xl font-semibold">{bucket.year}</h2>
+        <ul class="my-2 ml-2 list-none">
+          {bucket.list.map(({ post, month, day }) => (
+            <li class="my-2 flex flex-wrap items-baseline gap-x-2 leading-snug">
+              <time
+                datetime={parseDateInTz(
+                  post.data.pubDatetime,
+                  post.data.timezone
+                ).toISOString()}
+                class="text-muted-foreground min-w-12 text-sm"
+              >
+                {String(month).padStart(2, "0")}/{String(day).padStart(2, "0")}:
+              </time>
+              <a
+                href={getPostUrl(
+                  post.id,
+                  post.filePath,
+                  locale,
+                  post.data.slug
+                )}
+                class="text-accent decoration-dashed underline-offset-4 hover:underline"
+              >
+                {post.data.title}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))
+  }
+</Main>

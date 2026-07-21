@@ -1,0 +1,58 @@
+@import "tailwindcss";
+@import "./theme.css";
+@import "./typography.css";
+@import "./callouts.css";
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+:root {
+  /*
+   * App content max-width — single source of truth for the centered
+   * column. Mirrors Tailwind's `max-w-3xl` (48rem) used by the
+   * `app-layout` / `max-w-app` utilities. Exposed as a CSS custom
+   * property so the right-rail TOC (`TableOfContents.astro`) can
+   * compute its `right: calc(50vw - …)` offset without hard-coding
+   * the 48rem literal — keep this in sync with `max-w-app` above.
+   */
+  --app-max-width: 48rem;
+}
+@layer base {
+  * {
+    @apply border-border outline-accent/75;
+    scrollbar-width: auto;
+    scrollbar-color: var(--color-muted) transparent;
+  }
+  /* #8 A11Y — exclude `.heading-link` from the universal focus-
+     outline rule. The heading-anchor `<a>` lives inside
+     `<h2 class="group">` and is meant to be hidden until the
+     heading is hovered or focused; the dashed `outline-2` from
+     this rule would otherwise collide visually with the `#`
+     permalink glyph the anchor already carries, AND override
+     the anchor's own `md:focus:opacity-100` reveal — the
+     heading would appear to "always have a focus outline",
+     defeating the hover-to-discover pattern. The `&:not(...)`
+     selector narrows the rule without touching the
+     heading-link plugin or its tests. */
+  a:not(.heading-link),
+  button:not(.heading-link) {
+    @apply outline-accent outline-offset-1 focus-visible:no-underline focus-visible:outline-2 focus-visible:outline-dashed;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+@utility max-w-app {
+  @apply max-w-3xl;
+}
+@utility app-layout {
+  @apply max-w-app mx-auto w-full px-4;
+}
+@utility active-nav {
+  @apply underline decoration-wavy decoration-2 underline-offset-8;
+} /* * Gallery grid: when nested inside an `app-prose` article (the gallery * detail page renders the MDX body inside one), the prose container * applies anchor/text color rules that would otherwise re-tint the * PhotoSwipe thumbnail links. `not-prose` resets typography styles but * leaves the photo square aspect + grid intact. This rule adds an * extra safety net for the thumbnail link color in case the prose * cascade order shifts. */
+.pswp-gallery a {
+  color: inherit;
+  text-decoration: none;
+}
+:target {
+  scroll-margin-block: 1rem;
+}

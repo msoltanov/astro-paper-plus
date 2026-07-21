@@ -1,0 +1,57 @@
+---
+import type { GetStaticPaths } from "astro";
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import PostsIndexBody from "@/components/PostsIndexBody.astro";
+import { getSortedPosts } from "@/utils/getSortedPosts";
+import { postsByLocale } from "@/utils/postsByLocale";
+import { useTranslations } from "@/i18n";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+import config from "@/config";
+export const getStaticPaths = (async ({ paginate }) => {
+  // Default locale only — non-default locales use
+  // src/pages/[locale]/posts/[...page].astro
+  const posts = await getCollection("posts", postsByLocale(DEFAULT_LOCALE));
+  const sorted = getSortedPosts(posts);
+
+  return paginate(sorted, { pageSize: config.posts.perPage });
+}) satisfies GetStaticPaths;
+const { page } = Astro.props;
+const locale = Astro.currentLocale ?? DEFAULT_LOCALE;
+const t = useTranslations(locale);
+// Page 1 (`/posts/`) lives at the same canonical URL as the hreflang
+// cluster root, so we emit the full cluster there. Page 2+ is a
+// page-specific canonical (`/posts/2/`, `/posts/3/`, …) — emitting
+// the root cluster on those pages would tell search engines that
+// `/posts/2/` has alternate URLs at `/posts/`, `/ru/posts/`, etc.,
+// while its own canonical claims `/posts/2/`. That mismatch can cause
+// search engines to ignore the cluster entirely. Suppress
+// `hrefByLocale` on page 2+ so the head carries no hreflang at all
+// (canonical stands alone).
+const hrefByLocale =
+  page.currentPage === 1
+    ? hrefByLocaleForStaticRoute(
+        "posts",
+        Astro.site?.origin ?? new URL(Astro.url).origin,
+        locale
+      )
+    : undefined;
+// H1 (issues.md): `<link rel="prev">` / `<link rel="next">` so Google
+// can consolidate `/posts/`, `/posts/2/`, `/posts/3/` into a single
+// paginated cluster. `page.url.prev` / `page.url.next` are
+// `string | undefined` (Astro's `Page<…>` types) — left undefined on
+// page 1 (no prev) and the last page (no next). The Layout
+// conditionally emits the link when the prop is defined.
+const prevHref = page.url.prev;
+const nextHref = page.url.next;
+---
+
+<Layout
+  title={`${t.pages.postsTitle} | ${config.site.title}`}
+  hrefByLocale={hrefByLocale}
+  {prevHref}
+  {nextHref}
+>
+  <PostsIndexBody locale={locale} page={page} />
+</Layout>

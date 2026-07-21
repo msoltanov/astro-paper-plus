@@ -1,0 +1,84 @@
+---
+import { type CollectionEntry, getCollection, render } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import ProjectDetailBody from "@/components/ProjectDetailBody.astro";
+import { getProjectSlugSegments } from "@/utils/getProjectPaths";
+import { projectsByLocale } from "@/utils/projectsByLocale";
+import { projectFilter } from "@/utils/projectFilter";
+import { coverImageSrc } from "@/utils/coverImageSrc";
+import {
+  buildContentTranslationGroups,
+  findContentSiblings,
+} from "@/utils/contentSiblings";
+import { LOCALES, DEFAULT_LOCALE, localeParam } from "@/i18n/locales";
+import config from "@/config";
+export async function getStaticPaths() {
+  const allPaths: Array<{
+    params: { locale: string; slug: string };
+    props: {
+      project: CollectionEntry<"projects">;
+      siblings: ReturnType<typeof findContentSiblings<"projects">>;
+    };
+  }> = [];
+  // Build translation groups once across every locale, then hand
+  // each project its sibling set. Sibling lookup is O(1) per
+  // project once the group map is built. Filter drafts and scheduled
+  // projects at the source so the rendered per-locale detail pages
+  // — and the sitemap (which harvests hreflang clusters from the
+  // rendered HTML via `src/integrations/sitemap.ts`) — never expose
+  // a draft URL.
+  const allProjects = await getCollection("projects").then(p =>
+    p.filter(projectFilter)
+  );
+  const translationGroups = buildContentTranslationGroups(
+    "projects",
+    allProjects
+  );
+  for (const locale of LOCALES) {
+    if (locale === DEFAULT_LOCALE) continue;
+    const projects = await getCollection(
+      "projects",
+      projectsByLocale(locale)
+    ).then(p => p.filter(projectFilter));
+    for (const project of projects) {
+      const siblings = findContentSiblings(
+        "projects",
+        project,
+        translationGroups
+      );
+      allPaths.push({
+        params: {
+          locale,
+          slug: getProjectSlugSegments(
+            project.id,
+            project.filePath as string | undefined,
+            project.data.slug
+          ),
+        },
+        props: { project, siblings },
+      });
+    }
+  }
+  return allPaths;
+}
+const { project, siblings } = Astro.props;
+const locale = localeParam(Astro.params.locale);
+const { description, coverImage } = project.data;
+const { Content } = await render(project);
+const ogImageUrl = coverImageSrc(coverImage);
+const ogImage = ogImageUrl
+  ? new URL(ogImageUrl, Astro.url.origin).href
+  : undefined;
+---
+
+<Layout
+  title={`${project.data.title} | ${config.site.title}`}
+  {description}
+  {ogImage}
+  availableLocales={siblings.availableLocales}
+  hrefByLocale={siblings.hrefByLocale}
+>
+  <ProjectDetailBody {locale} {project}>
+    <Content />
+  </ProjectDetailBody>
+</Layout>

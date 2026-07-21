@@ -1,0 +1,106 @@
+name: Bump gitleaks version
+
+# In-repo Renovate alternative. Dependabot's `npm` ecosystem can't
+# track a JS string constant, and the project doesn't want to onboard
+# a third-party bot just to track a single version. This workflow
+# hits the GitHub releases API weekly, compares to the constant in
+# `scripts/secret-scan.mjs`, and opens a PR when upstream ships a
+# new gitleaks release.
+#
+# Triggered by:
+#   - weekly cron (Sunday 06:00 UTC, low-traffic window)
+#   - `workflow_dispatch` for ad-hoc bumps
+#   - PR edits to the bump script itself (rerun on script change)
+on:
+  schedule:
+    - cron: "0 6 * * 0"
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/gitleaks-bump.mjs"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    name: Check for newer gitleaks release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The version-check + PR-open work is independent of the rest
+    # of the repo's CI. Don't gate the bump on the main CI suite —
+    # the PR it opens will trigger the regular CI when reviewers
+    # look at it, and gating here would just delay a routine chore.
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+
+      # Fetch the current pinned version + the latest upstream
+      # release. The script writes a single-line JSON object to
+      # stdout; we capture it and re-emit each field as a step
+      # output so downstream steps can branch on `changed`.
+      - name: Compare versions
+        id: compare
+        run: |
+          set -euo pipefail
+          REPORT="$(node scripts/gitleaks-bump.mjs)"
+          echo "[bump] ${REPORT}"
+          CHANGED="$(node -e 'process.stdout.write(String(JSON.parse(process.argv[1]).changed))' "${REPORT}")"
+          CURRENT="$(node -e 'process.stdout.write(String(JSON.parse(process.argv[1]).current))' "${REPORT}")"
+          LATEST="$(node -e 'process.stdout.write(String(JSON.parse(process.argv[1]).latest))' "${REPORT}")"
+          echo "changed=${CHANGED}" >> "$GITHUB_OUTPUT"
+          echo "current=${CURRENT}" >> "$GITHUB_OUTPUT"
+          echo "latest=${LATEST}" >> "$GITHUB_OUTPUT"
+
+      # `peter-evans/create-pull-request` only edits a single
+      # file per branch when given `commit-message` + specific paths
+      # — we just bump the constant in `scripts/secret-scan.mjs`.
+      # CI's `env.GITLEAKS_VERSION` reads from the same file (via
+      # a small `node -p` step that grep-extracts the version), so
+      # a single edit here keeps both call sites in sync.
+      - name: Open bump PR
+        if: steps.compare.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
+        with:
+          branch: chore/bump-gitleaks-${{ steps.compare.outputs.latest }}
+          title: "chore(deps): bump gitleaks to ${{ steps.compare.outputs.latest }}"
+          # The body is rewritten on rerun if the bump script is
+          # edited; include the current + next version so reviewers
+          # see the actual change in the PR body without opening
+          # the file.
+          body: |
+            Bumps the gitleaks version pinned in
+            `scripts/secret-scan.mjs` from
+            **${{ steps.compare.outputs.current }}** →
+            **${{ steps.compare.outputs.latest }}**.
+
+            Upstream release:
+            <https://github.com/gitleaks/gitleaks/releases/tag/v${{ steps.compare.outputs.latest }}>
+
+            Triggered by the weekly `Bump gitleaks version` workflow.
+            Merging this will:
+              - update the cached-binary key in `.github/workflows/ci.yml`
+                (it reads `GITLEAKS_VERSION` from the script via
+                `node -p` — no separate edit needed)
+              - invalidate stale gitleaks binaries under `.cache/gitleaks/`
+                on every runner, so the next CI run downloads the new release
+          commit-message: "chore(deps): bump gitleaks from ${{ steps.compare.outputs.current }} to ${{ steps.compare.outputs.latest }}"
+          # `add-paths` scopes the change to the bumped file. If the
+          # bump script is edited in a future PR, this step would
+          # still only commit the version change — the script edit
+          # goes through a separate PR.
+          add-paths: scripts/secret-scan.mjs
+          # No deletions. No other files touched.
+          delete-branch: true
+          # Don't open a PR if the only change is whitespace.
+          signoff: false
+
+      - name: No new release
+        if: steps.compare.outputs.changed != 'true'
+        run: |
+          echo "gitleaks ${{ steps.compare.outputs.latest }} already pinned in scripts/secret-scan.mjs (${{ steps.compare.outputs.current }}) — no PR needed."

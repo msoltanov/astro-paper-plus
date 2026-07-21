@@ -1,0 +1,61 @@
+---
+/**
+ * Shared `NotFoundBody` — used by BOTH:
+ *   - `src/pages/404.astro`           (default-locale catch-all)
+ *   - `src/pages/[locale]/404.astro`  (per-locale 404 route)
+ *
+ * Extracted from the duplicate route pair during the route-dedup
+ * pass. The two route files now exist only as thin
+ * `getStaticPaths` / URL-parsing wrappers around this component.
+ * Mirrors the `HomePage.astro` / `PostsIndexBody.astro` pattern.
+ */
+import Layout from "@/layouts/Layout.astro";
+import LinkButton from "@/components/LinkButton.astro";
+import { getRelativeLocaleUrl } from "astro:i18n";
+import { useTranslations } from "@/i18n";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+import config from "@/config";
+
+interface Props {
+  locale: string;
+}
+
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+// #13 SEO — hreflang cluster for the 404 page. Without this, the
+// `<link rel="alternate" hreflang="...">` annotations are missing
+// from `dist/404.html` and `dist/<locale>/404.html`, and search
+// engines sometimes index the wrong-locale 404 in their SERPs.
+// The `404` logical name is in `ALLOWED_LOGICAL_NAMES` so the
+// helper throws on typo — the actual URL is built with the bare
+// `/404` shape (no trailing slash) so it matches the route file.
+const hrefByLocale = hrefByLocaleForStaticRoute(
+  "404",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  locale
+);
+---
+
+<Layout
+  title={`${t.notFound.title} | ${config.site.title}`}
+  noindex={true}
+  hrefByLocale={hrefByLocale}
+>
+  <main
+    id="main-content"
+    tabindex="-1"
+    class="app-layout flex flex-1 items-center justify-center"
+  >
+    <div class="mb-14 flex flex-col items-center justify-center">
+      <h1 class="text-accent text-9xl font-bold">404</h1>
+      <span aria-hidden="true"> ¯\_(ツ)_/¯ </span>
+      <p class="mt-4 text-2xl sm:text-3xl">{t.notFound.message}</p>
+      <LinkButton
+        href={getRelativeLocaleUrl(locale, "")}
+        class="my-6 text-lg underline decoration-dashed underline-offset-8"
+      >
+        {t.notFound.goHome}
+      </LinkButton>
+    </div>
+  </main>
+</Layout>

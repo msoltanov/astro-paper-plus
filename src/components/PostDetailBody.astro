@@ -1,0 +1,147 @@
+---
+/**
+ * `PostDetailBody` — shared body for the per-locale post detail page.
+ *
+ * Used by BOTH:
+ *   - `src/pages/posts/[...slug]/index.astro`           (default locale)
+ *   - `src/pages/[locale]/posts/[...slug].astro`        (non-default locales)
+ *
+ * The two route files exist only as thin `getStaticPaths` wrappers
+ * around this component — they pass the resolved `CollectionEntry`,
+ * the rendered MDX content via the default slot, and the adjacent-
+ * post + sibling-locale set as props. Mirrors the
+ * `ProjectDetailBody.astro` / `GalleryDetailBody.astro` route-dedup
+ * pattern (see C3 in issues.md).
+ *
+ * The `id` from the post is used to namespace the `transition:name`
+ * on each tag pill (M17) so the same tag on two pages morphs
+ * independently.
+ */
+import type { CollectionEntry } from "astro:content";
+import Datetime from "@/components/Datetime.astro";
+import Tag from "@/components/Tag.astro";
+import TableOfContents from "@/components/TableOfContents.astro";
+import { slugifyStr } from "@/utils/slugify";
+import { postTitleTransitionName } from "@/utils/postTitleTransitionName";
+import { parseDateInTz } from "@/utils/parseDateInTz";
+import EditPost from "@/components/post/EditPost.astro";
+import ShareLinks from "@/components/post/ShareLinks.astro";
+import BackButton from "@/components/post/BackButton.astro";
+import BackToTopButton from "@/components/post/BackToTopButton.astro";
+import AdjacentPostNav from "@/components/post/AdjacentPostNav.astro";
+import { useTranslations } from "@/i18n";
+import config from "@/config";
+
+interface AdjacentPost {
+  id: string;
+  title: string;
+  filePath: string | undefined;
+  slug?: string;
+}
+
+interface Props {
+  locale: string;
+  post: CollectionEntry<"posts">;
+  prevPost: AdjacentPost | null;
+  nextPost: AdjacentPost | null;
+  headings: import("astro").MarkdownHeading[];
+}
+
+const { locale, post, prevPost, nextPost, headings } = Astro.props;
+const { id, data } = post;
+const {
+  title,
+  pubDatetime,
+  modDatetime,
+  timezone,
+  tags,
+  hideEditPost,
+  tocAside,
+} = data;
+// Resolve string-or-Date into a Date in the post's timezone (or site
+// fallback) so the inner Datetime receives a normalized value. See
+// `src/utils/parseDateInTz.ts` for the TZ-consistency rationale.
+const pubDate = parseDateInTz(pubDatetime, timezone);
+const modDate =
+  modDatetime != null ? parseDateInTz(modDatetime, timezone) : null;
+const t = useTranslations(locale);
+---
+
+<BackButton />
+<main
+  id="main-content"
+  tabindex="-1"
+  class:list={["app-layout", { "mt-8": !config.features.showBackButton }]}
+  data-pagefind-body
+  data-copy-label={t.post.copy}
+  data-copied-label={t.post.copied}
+  data-copy-failed-label={t.post.copyFailed}
+>
+  <h1
+    style={{
+      viewTransitionName: postTitleTransitionName(post),
+    }}
+    class="text-accent inline-block text-2xl font-bold sm:text-3xl"
+  >
+    {title}
+  </h1>
+
+  <div class="my-2 flex items-center gap-2">
+    <Datetime
+      pubDatetime={pubDate}
+      modDatetime={modDate}
+      {timezone}
+      size="lg"
+    />
+    {
+      /**
+       * L7 (issues.md): the previous markup mixed two `hidden` signals
+       * — `max-sm:hidden` (always present, Tailwind utility) + the
+       * boolean `hidden` class (added when the edit-post link is
+       * disabled). On desktop both classes were applied; on mobile,
+       * `max-sm:hidden` already hides the divider regardless of edit
+       * state, so the boolean `hidden` was always redundant. Lifted
+       * the gating into a single expression that drops the entire
+       * span when the edit-post block isn't going to render anyway.
+       */
+    }
+    {
+      config.features.editPost?.enabled && !hideEditPost && (
+        <span aria-hidden="true" class="text-muted-foreground max-sm:hidden">
+          |
+        </span>
+      )
+    }
+    <EditPost {hideEditPost} {post} class="max-sm:hidden" />
+  </div>
+
+  {tocAside && <TableOfContents {headings} label={t.post.onThisPage} />}
+
+  <article
+    id="article"
+    class:list={[
+      "mt-8 w-full",
+      "app-prose max-w-app",
+      "prose-pre:bg-(--shiki-light-bg) dark:prose-pre:bg-(--shiki-dark-bg)",
+    ]}
+  >
+    <slot />
+  </article>
+
+  <hr class="my-8 border-dashed" />
+  <EditPost class="sm:hidden" {hideEditPost} {post} />
+  <BackToTopButton />
+
+  <ul class="mt-4 mb-8 flex flex-wrap gap-4 sm:my-8">
+    {
+      tags.map(tag => (
+        <Tag tag={slugifyStr(tag)} tagName={tag} size="sm" scope={id} />
+      ))
+    }
+  </ul>
+
+  <ShareLinks />
+
+  <hr class="my-8 border-dashed" />
+  <AdjacentPostNav {prevPost} {nextPost} />
+</main>

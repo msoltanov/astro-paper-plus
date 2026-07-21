@@ -1,0 +1,52 @@
+---
+import type { Page } from "astro";
+import type { CollectionEntry } from "astro:content";
+import IconArrowLeft from "@/assets/icons/IconArrowLeft.svg";
+import IconArrowRight from "@/assets/icons/IconArrowRight.svg";
+import LinkButton from "./LinkButton.astro";
+import { tplStr, useTranslations } from "@/i18n";
+type Props = { page: Page<CollectionEntry<"posts">> };
+const { page } = Astro.props;
+const t = useTranslations(Astro.currentLocale);
+const pageCountLabel = tplStr(t.pagination.pageCount, {
+  current: page.currentPage,
+  total: page.lastPage,
+});
+---
+
+{
+  page.lastPage > 1 && (
+    <nav class="mb-8 flex justify-center gap-4" aria-label={t.pagination.nav}>
+      <LinkButton
+        disabled={!page.url.prev}
+        href={page.url.prev ?? "#"}
+        class:list={[
+          "select-none",
+          { "pointer-events-none opacity-50": !page.url.prev },
+        ]}
+        aria-label={t.a11y.goToPreviousPage}
+      >
+        <IconArrowLeft aria-hidden="true" class="inline-block rtl:rotate-180" />
+        {t.pagination.prev}
+      </LinkButton>
+      <span aria-current="page" aria-label={pageCountLabel}>
+        {page.currentPage} / {page.lastPage}
+      </span>
+      <LinkButton
+        disabled={!page.url.next}
+        href={page.url.next ?? "#"}
+        class:list={[
+          "select-none",
+          { "pointer-events-none opacity-50": !page.url.next },
+        ]}
+        aria-label={t.a11y.goToNextPage}
+      >
+        {t.pagination.next}
+        <IconArrowRight
+          aria-hidden="true"
+          class="inline-block rtl:rotate-180"
+        />
+      </LinkButton>
+    </nav>
+  )
+}

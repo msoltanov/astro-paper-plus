@@ -1,0 +1,316 @@
+---
+pubDatetime: "2022-09-23T04:58:53Z"
+modDatetime: "2026-06-03T00:00:00.000Z"
+title: Как настроить тему AstroPaper+
+featured: true
+draft: false
+tags:
+  - configuration
+  - docs
+description: Как сделать тему AstroPaper+ полностью своей (форк AstroPaper от Sat Naing).
+---
+import ResponsiveTable from '@/components/ResponsiveTable.astro';
+
+Это руководство описывает доступные параметры конфигурации в **AstroPaper+** — от метаданных сайта и флагов функций до шрифтов, социальных ссылок и параметров макета. AstroPaper+ — форк AstroPaper от [Sat Naing](https://github.com/satnaing); см. [страницу «О сайте»](/about) для атрибуции форка.
+
+## Table of contents
+
+## Конфигурация astro-paper.config.ts
+
+Вся общая конфигурация сайта живёт в `astro-paper.config.ts` в корне проекта. Используйте `defineAstroPaperConfig()`, чтобы получить полную поддержку IntelliSense:
+
+```ts file="astro-paper.config.ts"
+import { defineAstroPaperConfig } from "./src/types/config";
+
+export default defineAstroPaperConfig({
+  site: {
+    url: "https://your-site.com/", // замените на URL развёрнутого сайта
+    title: "AstroPaper+",
+    description: "A minimal, responsive and SEO-friendly Astro blog theme (fork of AstroPaper by Sat Naing).",
+    author: "",
+    profile: "https://your-site.com",
+    ogImage: "default-og.jpg",
+    lang: "en",
+    timezone: "Asia/Bangkok",
+    dir: "ltr",
+  },
+  posts: {
+    perPage: 4,
+    perIndex: 4,
+  },
+  content: {
+    scheduledPostMargin: 15 * 60 * 1000, // 15 минут
+  },
+  features: {
+    lightAndDarkMode: true,
+    dynamicOgImage: true,
+    showArchives: true,
+    showBackButton: true,
+    editPost: {
+      enabled: true,
+      url: "https://github.com/msoltanov/astro-paper-plus/edit/main/",
+    },
+    search: "pagefind",
+  },
+  socials: [
+    { name: "github", url: "https://github.com/msoltanov/astro-paper-plus" },
+    { name: "x", url: "https://x.com/username" },
+    { name: "linkedin", url: "https://www.linkedin.com/in/username/" },
+    { name: "mail", url: "mailto:yourmail@gmail.com" },
+  ],
+  shareLinks: [
+    { name: "whatsapp", url: "https://wa.me/?text=" },
+    { name: "facebook", url: "https://www.facebook.com/sharer.php?u=" },
+    { name: "x", url: "https://x.com/intent/post?url=" },
+    { name: "telegram", url: "https://t.me/share/url?url=" },
+    { name: "mail", url: "mailto:?subject=See%20this%20post&body=" },
+  ],
+});
+
+```
+
+### Параметры `site`
+
+<ResponsiveTable>
+| Параметр               | Описание                                                                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `url`                  | URL развёрнутого сайта. Используется для канонических URL, URL OG-изображений, RSS-ленты и sitemap. В продакшене должен быть указан корректно.                       |
+| `title`                | Название вашего сайта.                                                                                                                                                |
+| `description`          | Описание сайта. Полезно для SEO и шеринга в соцсетях.                                                                                                                  |
+| `author`               | Ваше имя. Используется как автор записи по умолчанию.                                                                                                                  |
+| `profile`              | URL вашего личного/портфолио сайта, используется для структурированных данных. Установите `undefined`, если у вас его нет.                                              |
+| `ogImage`              | Имя файла OG-изображения по умолчанию в `/public` (например, `"default-og.jpg"`). Используется, когда у записи не задано своё OG-изображение и `dynamicOgImage` отключён. |
+| `lang`                 | Код языка ISO для `<html lang="...">`. По умолчанию `"en"`.                                                                                                            |
+| `timezone`             | Часовой пояс IANA для дат записей (например, `"Asia/Bangkok"`). Обеспечивает согласованные метки времени на localhost и развёрнутом сайте.                              |
+| `dateFormat.post` / `dateFormat.project` | `Intl.DateTimeFormatOptions` для дат на странице записи/листинге и компактных дат в карточках проектов соответственно. По умолчанию `{ day: "numeric", month: "short", year: "numeric" }` и `{ year: "numeric", month: "short" }`. Локализованные CLDR-варианты (`month: "long"`, `day: "2-digit"`, `weekday: "short"`) подхватываются автоматически для каждого поддерживаемого языка — без отдельной настройки на локаль. |
+| `dir`                  | Направление текста для `<html dir="...">`. Поддерживает `"ltr"` \| `"rtl"` \| `"auto"`.                                                                                  |
+| `googleVerification`   | Значение мета-тега верификации Google Search Console. Необязательно. Имеет приоритет над переменной окружения `PUBLIC_GOOGLE_SITE_VERIFICATION`.                        |
+</ResponsiveTable>
+
+### Параметры `posts`
+
+<ResponsiveTable>
+| Параметр                | Описание                                                                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `perPage`               | Число записей на странице в пагинированных списках. По умолчанию `4`.                                                                                  |
+| `perIndex`              | Число записей в секции «Свежее» на главной странице. По умолчанию `4`.                                                                                 |
+</ResponsiveTable>
+
+### Параметры `content`
+
+<ResponsiveTable>
+| Параметр                | Описание                                                                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scheduledPostMargin`   | Записи, галереи и проекты с будущей `pubDatetime` в пределах этого окна (в мс) считаются опубликованными. По умолчанию 15 минут (`15 * 60 * 1000`). |
+</ResponsiveTable>
+
+### Параметры `features`
+
+<ResponsiveTable>
+| Параметр             | Описание                                                                                                                                                                                                              |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lightAndDarkMode`   | Включает или отключает переключатель светлой/тёмной темы. По умолчанию `true`.                                                                                                                                          |
+| `dynamicOgImage`     | Генерирует динамическое OG-изображение для каждой записи, когда во frontmatter не указано `ogImage`. По умолчанию `true`. Подробнее о компромиссах — см. соответствующую секцию.                                       |
+| `showArchives`       | Показывает страницу `/archives` и ссылку на неё в шапке. По умолчанию `true`.                                                                                                                                          |
+| `showBackButton`     | Показывает кнопку «Назад» на страницах записей. По умолчанию `true`.                                                                                                                                                   |
+| `editPost`           | Ссылка «Редактировать страницу» под заголовком записи. Установите `enabled: true` и укажите базовый `url` для edit-URL вашего репозитория. Переопределение для конкретной записи — через frontmatter `hideEditPost`.   |
+| `search`             | Провайдер поиска. По умолчанию `"pagefind"`. Установите `false`, чтобы полностью отключить поиск.                                                                                                                       |
+</ResponsiveTable>
+
+## Изменение ширины макета
+
+Стандартная `max-width` для всего блога — `768px` (`max-w-3xl`). Если хотите изменить её, обновите утилиту `max-w-app` в `src/styles/global.css`:
+
+```css file="src/styles/global.css"
+@utility max-w-app {
+  /* [!code --:1] */
+  @apply max-w-3xl;
+  /* [!code ++:1] */
+  @apply max-w-4xl xl:max-w-5xl;
+}
+
+```
+
+Другие значения `max-width` можно посмотреть в [документации Tailwind CSS](https://tailwindcss.com/docs/max-width).
+
+## Настройка логотипа или заголовка
+
+Есть 3 варианта:
+
+### Вариант 1: Текст названия сайта
+
+Самый простой вариант. Обновите `site.title` в `astro-paper.config.ts`.
+
+### Вариант 2: SVG-компонент Astro
+
+Этот вариант подойдёт, если вы хотите использовать SVG-логотип.
+
+- Сначала добавьте SVG в каталог `src/assets/`. (например, `src/assets/dummy-logo.svg`)
+- Затем импортируйте этот SVG в `Header.astro`:
+
+```astro file="src/components/Header.astro"
+---
+// ...
+import DummyLogo from "@/assets/dummy-logo.svg";
+---
+
+```
+
+- Наконец, замените `{config.site.title}` на импортированный логотип:
+
+```html
+<a href="/" class="absolute py-1 text-left text-2xl leading-7 font-semibold whitespace-nowrap sm:static">
+  <DummyLogo class="scale-75 dark:invert" />
+  <!-- {config.site.title} -->
+</a>
+
+```
+
+Лучшее в этом подходе — вы можете стилизовать SVG как угодно. В примере выше видно, как цвет SVG-логотипа инвертируется в тёмной теме.
+
+### Вариант 3: Image-компонент Astro
+
+Если ваш логотип — изображение, но не SVG, можно использовать Image-компонент Astro.
+
+- Добавьте логотип в каталог `src/assets/`. (например, `src/assets/dummy-logo.png`)
+- Импортируйте `Image` и логотип в `Header.astro`:
+
+```astro file="src/components/Header.astro"
+---
+// ...
+import { Image } from "astro:assets";
+
+import dummyLogo from "@/assets/dummy-logo.png";
+---
+
+```
+
+- Затем замените `{config.site.title}` на импортированный логотип:
+
+```html
+<a href="/" class="absolute py-1 text-left text-2xl leading-7 font-semibold whitespace-nowrap sm:static">
+  <image src="{dummyLogo}" alt="My Blog" class="dark:invert" />
+  <!-- {config.site.title} -->
+</a>
+
+```
+
+При таком подходе внешний вид изображения можно по-прежнему менять через CSS-классы. Однако это не всегда подходит. Если нужно показывать разные изображения логотипа для светлой и тёмной темы, посмотрите, как обрабатываются светлые/тёмные иконки внутри компонента `Header.astro`.
+
+## Настройка социальных ссылок
+
+![Стрелка указывает на иконки социальных ссылок](https://github.com/user-attachments/assets/8b895400-d088-442f-881b-02d2443e00cf)
+
+Социальные ссылки настраиваются в массиве `socials` внутри `astro-paper.config.ts`. Каждая запись требует `name`, совпадающее с именем SVG-файла в `src/assets/icons/socials/`, и `url`:
+
+```ts file="astro-paper.config.ts"
+export default defineAstroPaperConfig({
+  // ...
+  socials: [
+    { name: "github", url: "" },
+    { name: "x", url: "https://x.com/username" },
+    { name: "linkedin", url: "https://www.linkedin.com/in/username/" },
+    { name: "mail", url: "mailto:yourmail@gmail.com" },
+  ],
+});
+
+```
+
+Чтобы добавить соцсеть, которой нет в стандартном наборе, положите её SVG-иконку в `src/assets/icons/socials/` и добавьте запись в массив. `name` должно совпадать с именем SVG-файла без расширения `.svg`.
+
+## Настройка share-ссылок
+
+![Стрелка указывает на иконки share-ссылок](https://github.com/user-attachments/assets/4f930b68-b625-45df-8c41-e076dd2b838e)
+
+Share-ссылки настраиваются в массиве `shareLinks`. Каждая запись требует `name` (совпадает с SVG в `src/assets/icons/socials/`) и базовый `url`, к которому будет добавлен URL записи:
+
+```ts file="astro-paper.config.ts"
+export default defineAstroPaperConfig({
+  // ...
+  shareLinks: [
+    { name: "whatsapp", url: "https://wa.me/?text=" },
+    { name: "facebook", url: "https://www.facebook.com/sharer.php?u=" },
+    { name: "x", url: "https://x.com/intent/post?url=" },
+    { name: "telegram", url: "https://t.me/share/url?url=" },
+    { name: "mail", url: "mailto:?subject=See%20this%20post&body=" },
+  ],
+});
+
+```
+
+## Настройка шрифтов
+
+AstroPaper+ использует [Fonts API](https://docs.astro.build/en/guides/fonts/) Astro с [Google Sans Code](https://fonts.google.com/specimen/Google+Sans+Code) в качестве шрифта по умолчанию. Это обеспечивает согласованную типографику на всех платформах с автоматической оптимизацией шрифтов, включая предзагрузку и кеширование.
+
+### Использование шрифта по умолчанию
+
+Шрифт автоматически настроен в `astro.config.ts` и загружается в `Layout.astro`. Никакой дополнительной конфигурации для использования Google Sans Code по умолчанию не требуется.
+
+### Настройка шрифта
+
+Чтобы использовать другой шрифт, обновите три места:
+
+1. **Обновите конфигурацию шрифта в `astro.config.ts`:**
+
+```ts file="astro.config.ts"
+import { defineConfig, fontProviders } from "astro/config";
+
+export default defineConfig({
+  // ...
+  fonts: [
+    {
+      name: "Your Font Name", // [!code highlight]
+      cssVariable: "--font-your-font", // [!code highlight]
+      provider: fontProviders.google(),
+      fallbacks: ["monospace"],
+      weights: [300, 400, 500, 600, 700],
+      styles: ["normal", "italic"],
+    },
+  ],
+});
+
+```
+
+2. **Обновите компонент Font в `Layout.astro`:**
+
+```astro file="src/layouts/Layout.astro"
+---
+import { Font } from "astro:assets";
+// ...
+---
+
+<head>
+  <!-- ... -->
+  <Font cssVariable="--font-your-font" preload={[{ subset: "latin", weight: 400, style: "normal" }]} />
+  <!-- ... -->
+</head>
+
+```
+
+3. **Обновите привязку CSS-переменной в `src/styles/theme.css`:**
+
+```css file="src/styles/theme.css"
+@theme inline {
+  --font-app: var(--font-your-font); /* [!code highlight] */
+  /* ... */
+}
+
+```
+
+Переменная `--font-app` используется по всей теме через Tailwind-утилиту `font-app`, поэтому обновление одной этой переменной применяет ваш кастомный шрифт везде.
+
+> [!WARNING]
+> Убедитесь, что имя шрифта точно совпадает с тем, как оно указано на [Google Fonts](https://fonts.google.com). Для других провайдеров или локальных шрифтов обратитесь к [документации Astro Fonts](https://docs.astro.build/en/guides/fonts/).
+
+## Смотрите также
+
+- Настройка цветовых схем темы AstroPaper+ — смена или добавление цветовых схем через `src/styles/theme.css`.
+- Добавление новых записей — справочник по frontmatter и соглашения по именованию файлов.
+
+
+
+---
+
+> **Originally written by [Sat Naing](https://github.com/satnaing) on
+> [satnaing.dev](https://satnaing.dev/). Translated and adapted for the
+> AstroPaper+ fork by [Mekan Soltanov](https://github.com/msoltanov).**

@@ -1,0 +1,70 @@
+---
+/**
+ * `TagListPageBody` — shared body for the per-tag listings.
+ *
+ * Used by BOTH:
+ *   - `src/pages/tags/[tag].astro`           (default locale, unprefixed URL)
+ *   - `src/pages/[locale]/tags/[tag].astro`  (non-default locales, prefixed URL)
+ *
+ * The two route files exist only as thin `getStaticPaths` wrappers around
+ * this component — they pass the locale + the filtered post slice into it.
+ * Mirrors the `HomePage.astro` / `PostsIndexBody.astro` pattern (see
+ * A1 in issues.md).
+ *
+ * Tags under `posts/_drafts/...` and non-default-locale posts are filtered
+ * out by `getStaticPaths` upstream; this body just renders the card list.
+ */
+import { type CollectionEntry } from "astro:content";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import Main from "@/components/Main.astro";
+import Card from "@/components/Card.astro";
+import { useTranslations } from "@/i18n";
+
+type Post = CollectionEntry<"posts">;
+
+interface Props {
+  locale: string;
+  tagName: string;
+  posts: Post[];
+  /**
+   * Override the page title. Defaults to `${t.post.tagLabel}: ${tagName}`.
+   * Routes pass nothing today; the prop is here so a future
+   * banner-bearing tag archive can override without forking the component.
+   */
+  pageTitle?: string;
+  /**
+   * Override the page description. Defaults to
+   * `${tagName} — ${t.pages.postsDesc}`.
+   */
+  pageDesc?: string;
+}
+
+const {
+  locale,
+  tagName,
+  posts,
+  pageTitle: pageTitleProp,
+  pageDesc: pageDescProp,
+} = Astro.props;
+const t = useTranslations(locale);
+
+// Page title derives from the tag label, falling back to the slug when
+// the author wrote the post with the slugified form as the label. The
+// translation string keeps "Posts tagged" localizable; the actual tag is
+// appended verbatim in the same sentence.
+const pageTitle = pageTitleProp ?? `${t.post.tagLabel}: ${tagName}`;
+const pageDesc = pageDescProp ?? `${tagName} — ${t.pages.postsDesc}`;
+---
+
+<Breadcrumb />
+<Main {pageTitle} {pageDesc}>
+  <ul>
+    {
+      posts.map(data => (
+        <Fragment>
+          <Card {...data} />
+        </Fragment>
+      ))
+    }
+  </ul>
+</Main>

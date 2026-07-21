@@ -1,0 +1,229 @@
+---
+/**
+ * TableOfContents — opt-in sticky right-rail sidebar (lg+) with a
+ * collapsible <details> fallback on mobile. Lists every h2/h3 in the
+ * post body and scroll-spies the currently visible heading.
+ *
+ * Author opt-in: set `tocAside: true` in the post frontmatter. Posts
+ * with fewer than `MIN_HEADINGS` qualifying headings render nothing —
+ * a one-item sidebar looks worse than no sidebar at all.
+ *
+ * Headings come from Astro's built-in `headings` API (returned by
+ * `await render(post)`). The rendered HTML gets stable `id` attributes
+ * via the `rehype-slug` plugin in `src/remark-plugins.ts`, so the
+ * slugs here line up with the actual DOM.
+ *
+ * The scrollspy runs as a small bundled `<script>`. It re-initialises
+ * on `astro:page-load` so it survives View Transitions, and disconnects
+ * the previous observer on `astro:before-swap` to avoid leaks.
+ */
+import type { MarkdownHeading } from "astro";
+import { nestToc } from "@/utils/toc";
+
+type Props = {
+  /** Headings from `await render(post).headings`. */
+  headings: MarkdownHeading[];
+  /** i18n label for the section / nav landmark. */
+  label: string;
+};
+
+const { headings, label } = Astro.props;
+
+const MIN_HEADINGS = 2;
+
+/** Keep only h2 and h3 — deeper headings make the sidebar noisy. */
+const items = headings.filter(h => h.depth === 2 || h.depth === 3);
+const tree = nestToc(items);
+// R9: count the FLAT list of qualifying headings, not just top-level
+// h2 roots. `h2 + h3 + h3 + h3` is "posts with 2+ headings" per the
+// frontmatter docs, but it has `tree.length === 1` (one h2 root) —
+// counting top-level only hides perfectly valid TOCs.
+const showToc = items.length >= MIN_HEADINGS;
+---
+
+{
+  showToc && (
+    <>
+      {/* Mobile: collapsible at the top of the article. */}
+      <details class="toc-mobile border-border bg-muted/30 not-prose mb-6 rounded-md border xl:hidden">
+        <summary class="text-foreground hover:text-accent cursor-pointer rounded-md px-3 py-2 text-sm font-semibold transition-colors">
+          {label}
+        </summary>
+        <nav aria-label={label} class="px-3 pb-3">
+          <ol class="toc-list m-0 flex list-none flex-col gap-1 p-0 text-sm">
+            {tree.map(node => (
+              <li>
+                <a
+                  href={`#${node.slug}`}
+                  data-toc-link={node.slug}
+                  class="toc-link toc-link-l2 text-muted-foreground hover:text-accent block rounded px-2 py-1 no-underline transition-colors"
+                >
+                  {node.text}
+                </a>
+                {node.children.length > 0 && (
+                  <ol class="toc-list m-0 flex list-none flex-col gap-1 p-0 pl-4 text-sm">
+                    {node.children.map(child => (
+                      <li>
+                        <a
+                          href={`#${child.slug}`}
+                          data-toc-link={child.slug}
+                          class="toc-link toc-link-l3 text-muted-foreground hover:text-accent block rounded px-2 py-1 no-underline transition-colors"
+                        >
+                          {child.text}
+                        </a>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      </details>
+
+      {/* Desktop: fixed-positioned right-rail aside. Floats in the page's right margin without affecting the article's centered position. `position: fixed` is pinned to the viewport (sticky behaviour), and the right offset keeps it flush with the page padding. Shown from `xl` (1280px) up so there's horizontal room for it next to a max-w-app article.
+       *
+       * The `calc(50vw - …)` offset is derived from `--app-max-width`
+       * (48rem = half of the centered column = 24rem), the TOC's own
+       * 14rem width (w-56), and a 1rem breathing gap. */}
+      <aside
+        class="toc-aside fixed top-28 z-30 hidden max-h-[calc(100vh-7rem)] w-56 overflow-y-auto pe-2 xl:block"
+        style="right: calc(50vw - var(--app-max-width) / 2 - 14rem - 1rem);"
+        aria-label={label}
+      >
+        <h2 class="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">
+          {label}
+        </h2>
+        <nav aria-label={label}>
+          <ol class="toc-list m-0 flex list-none flex-col gap-0.5 p-0 text-sm">
+            {tree.map(node => (
+              <li>
+                <a
+                  href={`#${node.slug}`}
+                  data-toc-link={node.slug}
+                  class="toc-link toc-link-l2 text-muted-foreground hover:text-accent block border-s-2 border-transparent py-1 ps-3 pe-2 no-underline transition-colors"
+                >
+                  {node.text}
+                </a>
+                {node.children.length > 0 && (
+                  <ol class="toc-list m-0 flex list-none flex-col gap-0.5 p-0 text-sm">
+                    {node.children.map(child => (
+                      <li>
+                        <a
+                          href={`#${child.slug}`}
+                          data-toc-link={child.slug}
+                          class="toc-link toc-link-l3 text-muted-foreground hover:text-accent block border-s-2 border-transparent py-1 ps-3 pe-2 no-underline transition-colors"
+                        >
+                          {child.text}
+                        </a>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      </aside>
+    </>
+  )
+}
+
+<style>
+  /* Active-heading indicator. The scrollspy script below adds `is-active` to the matching <a data-toc-link="…">. We use a border + accent colour so the indicator is visible regardless of theme; the muted-foreground default keeps inactive items quiet. */
+  .toc-link.is-active {
+    color: var(--color-accent);
+    border-inline-start-color: var(--color-accent);
+    font-weight: 600;
+  }
+
+  /* Respect users who'd rather not see motion-driven highlights. */
+  @media (prefers-reduced-motion: reduce) {
+    .toc-link {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  /**
+   * Scrollspy: highlight the TOC link whose heading is currently in
+   * the top portion of the viewport. Uses IntersectionObserver (one
+   * observer per page) so we don't churn the main thread on scroll.
+   *
+   * Lifecycle:
+   * - Init on first load.
+   * - Re-init after every View Transitions page swap.
+   * - Disconnect the old observer before swap to avoid leaks.
+   */
+  type HeadingEl = HTMLHeadingElement & { _tocObserver?: IntersectionObserver };
+
+  function initTocScrollspy() {
+    const article = document.getElementById("article");
+    if (!article) return;
+
+    const links = new Map(
+      Array.from(
+        document.querySelectorAll<HTMLAnchorElement>("[data-toc-link]")
+      ).map(a => [a.dataset.tocLink!, a])
+    );
+    if (links.size === 0) return;
+
+    // Track which headings are currently "above the fold line" and pick
+    // the last one (i.e. the one closest to the top while still visible)
+    // as the active one.
+    const visible = new Set<string>();
+
+    const setActive = (slug: string | null) => {
+      for (const [s, a] of links) {
+        a.classList.toggle("is-active", s === slug);
+        if (s === slug) a.setAttribute("aria-current", "location");
+        else a.removeAttribute("aria-current");
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      entries => {
+        for (const entry of entries) {
+          const slug = (entry.target as HTMLElement).id;
+          if (!slug) continue;
+          if (entry.isIntersecting) visible.add(slug);
+          else visible.delete(slug);
+        }
+        // Pick the last heading in document order that's still visible.
+        // `links` preserves source order because it was built from a
+        // DOM query that returns nodes in tree order.
+        let active: string | null = null;
+        for (const slug of links.keys()) {
+          if (visible.has(slug)) active = slug;
+        }
+        setActive(active);
+      },
+      {
+        // A heading is "active" once it crosses ~25% from the top of the
+        // viewport. The negative bottom margin collapses the trigger
+        // zone toward the top, so a heading is "active" while it sits
+        // in the top quarter of the screen — matches reader intuition.
+        rootMargin: "0px 0px -75% 0px",
+        threshold: 0,
+      }
+    );
+
+    // Only observe headings that have a matching TOC link — avoids
+    // attaching observers to headings the TOC doesn't reference.
+    for (const slug of links.keys()) {
+      const heading = document.getElementById(slug);
+      if (heading) observer.observe(heading);
+    }
+
+    (article as HeadingEl)._tocObserver?.disconnect();
+    (article as HeadingEl)._tocObserver = observer;
+  }
+
+  initTocScrollspy();
+  document.addEventListener("astro:page-load", initTocScrollspy);
+  document.addEventListener("astro:before-swap", () => {
+    const article = document.getElementById("article") as HeadingEl | null;
+    article?._tocObserver?.disconnect();
+  });
+</script>

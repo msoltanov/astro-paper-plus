@@ -1,0 +1,53 @@
+---
+import IconArrowNarrowUp from "@/assets/icons/IconArrowNarrowUp.svg";
+import { useTranslations } from "@/i18n";
+
+const t = useTranslations(Astro.currentLocale);
+
+// #10 A11Y — the button's `aria-label` already announces
+// `t.post.backToTop`; duplicating the visible text in the inner
+// span produces a screen-reader double-announce ("Back to top,
+// Back to top"). `aria-hidden` on the span keeps the visible
+// label for sighted users while leaving the accessible name as a
+// single source. #34 — the scroll handler toggles `tabindex="-1"`
+// and `aria-hidden="true"` when the button is invisible (scroll
+// below 30%) so keyboard users can't Tab into a hidden control.
+---
+
+<div
+  id="btt-btn-container"
+  class:list={[
+    "fixed inset-e-4 bottom-8 z-50",
+    "md:sticky md:inset-e-auto md:float-end md:me-1",
+    "translate-y-14 opacity-0 motion-safe:transition motion-safe:duration-500",
+  ]}
+>
+  <button
+    data-button="back-to-top"
+    aria-label={t.post.backToTop}
+    class:list={[
+      "group bg-background/35 bg-clip-padding backdrop-blur-lg",
+      "relative px-2 py-1",
+      "h-8 w-fit rounded-md focus-visible:rounded-none",
+    ]}
+  >
+    <span
+      aria-hidden="true"
+      class="group-hover:text-accent flex items-center gap-1 text-sm"
+    >
+      <IconArrowNarrowUp aria-hidden="true" class="inline-block size-4" />
+      {t.post.backToTop}
+    </span>
+  </button>
+</div>
+
+<script>
+  // Implementation lives in src/scripts/backToTopButton.ts so it
+  // can be imported directly from vitest (no disk-read + eval of
+  // this .astro file). Hoisted (not `is:inline`) so Astro bundles
+  // the import — `data-astro-rerun` is replaced by an explicit
+  // `astro:after-swap` listener below, which has the same effect.
+  import { installBackToTop } from "@/scripts/backToTopButton";
+  installBackToTop();
+  document.addEventListener("astro:after-swap", installBackToTop);
+</script>

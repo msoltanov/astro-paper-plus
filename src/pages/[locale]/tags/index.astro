@@ -1,0 +1,58 @@
+---
+/**
+ * Locale-prefixed tags index — `src/pages/[locale]/tags/index.astro`.
+ *
+ * R3 (issues.md): companion to `src/pages/tags/index.astro`. Lists
+ * unique tags from posts in the active non-default locale. The
+ * `[locale]` segment is the dynamic parameter Astro binds from the
+ * URL prefix; `getStaticPaths` emits one path per non-default locale
+ * using `groupNonDefaultLocale` so a single `getCollection` walk
+ * covers every locale.
+ *
+ * The visible body lives in the shared `TagsIndexBody.astro`
+ * component (mirrors the `TagListPageBody.astro` /
+ * `ArchivesBody.astro` pattern). The route file is intentionally a
+ * thin wrapper — it does NOT render `<Header />` or `<Footer />`
+ * inline, because `Layout.astro` already provides both at the right
+ * scope (with `availableLocales` + `hrefByLocale` props that an
+ * inline `<Header />` would silently drop).
+ */
+import type { CollectionEntry } from "astro:content";
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import TagsIndexBody from "@/components/TagsIndexBody.astro";
+import { getUniqueTags } from "@/utils/getUniqueTags";
+import { groupNonDefaultLocale } from "@/utils/groupNonDefaultLocale";
+import { postFilter } from "@/utils/postFilter";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+import { localeParam } from "@/i18n/locales";
+import { useTranslations } from "@/i18n";
+import config from "@/config";
+
+type Post = CollectionEntry<"posts">;
+
+export async function getStaticPaths() {
+  const byLocale = await groupNonDefaultLocale<Post>(async () =>
+    getCollection("posts")
+  );
+  return [...byLocale.entries()].map(([locale, posts]) => ({
+    params: { locale },
+    props: {
+      tags: getUniqueTags(posts.filter(postFilter)),
+    },
+  }));
+}
+
+const locale = localeParam(Astro.params.locale);
+const { tags } = Astro.props;
+const t = useTranslations(locale);
+const hrefByLocale = hrefByLocaleForStaticRoute(
+  "tags",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  locale
+);
+---
+
+<Layout title={`${t.pages.tagsTitle} | ${config.site.title}`} {hrefByLocale}>
+  <TagsIndexBody {locale} {tags} />
+</Layout>

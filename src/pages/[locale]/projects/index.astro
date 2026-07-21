@@ -1,0 +1,39 @@
+---
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import ProjectsListBody from "@/components/ProjectsListBody.astro";
+import { projectsByLocale } from "@/utils/projectsByLocale";
+import { projectFilter } from "@/utils/projectFilter";
+import { getSortedProjects } from "@/utils/getSortedProjects";
+import { useTranslations } from "@/i18n";
+import { LOCALES, DEFAULT_LOCALE, localeParam } from "@/i18n/locales";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+import config from "@/config";
+
+export async function getStaticPaths() {
+  return LOCALES.filter(l => l !== DEFAULT_LOCALE).map(locale => ({
+    params: { locale },
+  }));
+}
+
+const locale = localeParam(Astro.params.locale);
+const t = useTranslations(locale);
+// P2-5: shared sort policy via `getSortedProjects`.
+const projects = getSortedProjects(
+  (await getCollection("projects", projectsByLocale(locale))).filter(
+    projectFilter
+  )
+);
+const hrefByLocale = hrefByLocaleForStaticRoute(
+  "projects",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  locale
+);
+---
+
+<Layout
+  title={`${t.pages.projectsTitle} | ${config.site.title}`}
+  hrefByLocale={hrefByLocale}
+>
+  <ProjectsListBody {locale} {projects} />
+</Layout>

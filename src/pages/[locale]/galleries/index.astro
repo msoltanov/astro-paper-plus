@@ -1,0 +1,34 @@
+---
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import GalleriesListBody from "@/components/GalleriesListBody.astro";
+import { galleriesByLocale } from "@/utils/galleriesByLocale";
+import { galleryFilter } from "@/utils/galleryFilter";
+import { getSortedGalleries } from "@/utils/getSortedGalleries";
+import { useTranslations } from "@/i18n";
+import config from "@/config";
+import { LOCALES, DEFAULT_LOCALE, localeParam } from "@/i18n/locales";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+export async function getStaticPaths() {
+  if (!config.features.enableGalleries) return [];
+  return LOCALES.filter(l => l !== DEFAULT_LOCALE).map(locale => ({
+    params: { locale },
+  }));
+}
+const locale = localeParam(Astro.params.locale);
+const t = useTranslations(locale);
+const all = await getCollection("galleries", galleriesByLocale(locale));
+const galleries = getSortedGalleries(all.filter(galleryFilter));
+const hrefByLocale = hrefByLocaleForStaticRoute(
+  "galleries",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  locale
+);
+---
+
+<Layout
+  title={`${t.pages.galleriesTitle} | ${config.site.title}`}
+  hrefByLocale={hrefByLocale}
+>
+  <GalleriesListBody {locale} {galleries} />
+</Layout>

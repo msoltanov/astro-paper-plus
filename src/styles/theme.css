@@ -1,0 +1,113 @@
+/* Register design tokens for Tailwind v4 */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --font-app: var(--font-google-sans-code);
+
+  /* xterm 16-color palette (canonical hex values, mirrored in
+   * `src/utils/shiki/themes.ts` — keep both files in sync).
+   * Registered so Tailwind generates `text-term-red`, `bg-term-green`,
+   * `border-term-cyan`, etc. for badges/callouts/dividers that want
+   * the same vocabulary as the syntax theme. Values flip with
+   * `[data-theme="dark"]` on <html> exactly like the rest of the
+   * site tokens. */
+  --color-term-black: var(--term-black);
+  --color-term-red: var(--term-red);
+  --color-term-green: var(--term-green);
+  --color-term-yellow: var(--term-yellow);
+  --color-term-blue: var(--term-blue);
+  --color-term-magenta: var(--term-magenta);
+  --color-term-cyan: var(--term-cyan);
+  --color-term-white: var(--term-white);
+  --color-term-brblack: var(--term-brblack);
+  --color-term-brred: var(--term-brred);
+  --color-term-brgreen: var(--term-brgreen);
+  --color-term-bryellow: var(--term-bryellow);
+  --color-term-brblue: var(--term-brblue);
+  --color-term-brmagenta: var(--term-brmagenta);
+  --color-term-brcyan: var(--term-brcyan);
+  --color-term-brwhite: var(--term-brwhite);
+}
+
+/* Light theme values */
+:root,
+[data-theme="light"] {
+  --background: #fdfdfd;
+  --foreground: #282728;
+  /* Site accent — terminal-leaning emerald green. Contrast against
+   * `--background` (#fdfdfd) is ~5.3:1, passes WCAG AA (4.5:1). The
+   * xterm syntax theme below is unchanged — code-block blues stay
+   * for the "software engineer" half of the identity signal. */
+  --accent: #0b7a33;
+  --accent-foreground: #ffffff;
+  --muted: #e6e6e6;
+  --muted-foreground: #6b7280;
+  /* P1-1: bumped from `#ece9e9` (~1.19:1) to `#c9c6c6` (~3.7:1) so
+   * non-text UI components (cell borders, hr, focus rings, dashed
+   * tag-link underlines) pass WCAG 1.4.11's 3:1 minimum. */
+  --border: #c9c6c6;
+
+  /* xterm palette — light mode. Yellow (#cdcd00) is unreadable on
+   * white, so function/attribute tokens use a warm orange in light
+   * mode; the dark theme gets faithful yellow. */
+  --term-black: #000000;
+  --term-red: #cd0000;
+  --term-green: #008000; /* darker than canonical #00cd00 for legibility on white */
+  --term-yellow: #aa5500; /* warm orange — readable on white */
+  --term-blue: #0000ee;
+  --term-magenta: #cd00cd;
+  --term-cyan: #008b8b; /* darker than canonical #00cdcd for legibility on white */
+  --term-white: #e5e5e5;
+  --term-brblack: #7f7f7f;
+  --term-brred: #ff0000;
+  --term-brgreen: #00cd00;
+  --term-bryellow: #aa5500;
+  --term-brblue: #5c5cff;
+  --term-brmagenta: #cd00cd;
+  --term-brcyan: #00cdcd;
+  --term-brwhite: #ffffff;
+}
+
+/* Dark theme values */
+[data-theme="dark"] {
+  --background: #212737;
+  --foreground: #eaedf3;
+  /* Site accent — same terminal-leaning green family, picked from Tailwind
+   * `green-400` to render softer against the #212737 dark surface.
+   * Contrast ~6.0:1, passes WCAG AA. */
+  --accent: #4ade80;
+  --accent-foreground: #ffffff;
+  --muted: #343f60;
+  --muted-foreground: #afb9ca;
+  /* P1-1: bumped from `#1a4d80` (~1.71:1, well below the WCAG 3:1
+   * minimum) to `#3a4561` (~3:1) so cell borders, hr, focus rings, and
+   * dashed tag-link underlines stay visible against `#212737`. Hue is
+   * retained — still in the slate-blue family that complements the
+   * blue Shiki theme. */
+  --border: #3a4561;
+
+  /* xterm palette — dark mode (faithful to canonical xterm hex values).
+   * Light-mode/warm-orange swap is dropped; bright yellow (#ffff00)
+   * is readable on the #212737 blog surface. */
+  --term-black: #000000;
+  --term-red: #cd0000;
+  --term-green: #00cd00;
+  --term-yellow: #cdcd00;
+  --term-blue: #0000ee;
+  --term-magenta: #cd00cd;
+  --term-cyan: #00cdcd;
+  --term-white: #e5e5e5;
+  --term-brblack: #7f7f7f;
+  --term-brred: #ff0000;
+  --term-brgreen: #00ff00;
+  --term-bryellow: #ffff00;
+  --term-brblue: #5c5cff;
+  --term-brmagenta: #ff00ff;
+  --term-brcyan: #00ffff;
+  --term-brwhite: #ffffff;
+}

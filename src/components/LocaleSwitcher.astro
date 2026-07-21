@@ -1,0 +1,289 @@
+---
+import { getRelativeLocaleUrl } from "astro:i18n";
+import {
+  LOCALES,
+  LOCALE_LABELS,
+  isSupportedLocale,
+  DEFAULT_LOCALE,
+} from "@/i18n/locales";
+import { tplStr, useTranslations } from "@/i18n";
+
+/**
+ * Dropdown language switcher.
+ *
+ * - Built on `<details>` / `<summary>` for native keyboard accessibility
+ *   (Enter / Space toggles, Escape closes via the document listener below).
+ * - Click-outside-to-close behaviour is added via a tiny inline script.
+ * - Visible trigger shows the current locale code (EN / RU / TR) with
+ *   a chevron. The full native name lives on `title` for hover + SR.
+ * - When called from a post detail page (via Header forwarding
+ *   `hrefByLocale` + `availableLocales`), each option points at the
+ *   sibling's *actual* rendered URL. Locales without a translation are
+ *   still listed (the switcher is a UI affordance) but rendered
+ *   disabled with a "not translated" title hint — clicking them would
+ *   otherwise land on a 404.
+ * - On non-post pages (`hrefByLocale` undefined) the switcher falls
+ *   back to its default behaviour: strip the current locale prefix
+ *   from `Astro.url.pathname` and re-prefix with the target locale.
+ */
+
+const rawLocale = Astro.currentLocale ?? DEFAULT_LOCALE;
+const currentLocale = isSupportedLocale(rawLocale) ? rawLocale : "en";
+const t = useTranslations(currentLocale);
+type Props = {
+  class?: string;
+  /**
+   * Optional per-locale sibling URLs (forwarded from Header from
+   * post detail routes). When provided, the switcher prefers these
+   * over the path-stripping fallback so siblings with slug overrides
+   * land on their real URLs.
+   */
+  hrefByLocale?: Readonly<Record<string, string>>;
+  /**
+   * Optional subset of locales that actually have a sibling for the
+   * current page. Locales outside this set render disabled with a
+   * `title` hint explaining they're untranslated — preventing a 404
+   * for visitors who don't know which locales are translated.
+   */
+  availableLocales?: readonly string[];
+};
+const {
+  class: className,
+  hrefByLocale,
+  availableLocales,
+} = Astro.props as Props;
+
+// Matches `/posts/<n>` and `/<locale>/posts/<n>` (with or without
+// trailing slash) — the paginated archives shape. Page 1 doesn't
+// match (`<n>` requires at least one digit) so the page-1 switch is
+// unaffected.
+//
+// M — the locale-alternation is enumerated from LOCALES, not the
+// previous `[a-z]{2}` permissive regex. A non-LOCALE 2-letter segment
+// (e.g. `xx`) used to pass the gate and a downstream consumer
+// (path-stripping in `hrefForLocale`) would then mis-classify it.
+const localeAlt =
+  "(?:" + LOCALES.map(l => l.replace(/[^A-Za-z]/g, "")).join("|") + ")";
+const PAGINATED_POSTS_RE = new RegExp(
+  `^\\/?(?:${localeAlt}\\/)?posts\\/\\d+\\/?$`,
+  "i"
+);
+
+/**
+ * Reduce an href to an origin-relative path.
+ *
+ * `hrefByLocale` arrives as ABSOLUTE URLs rooted on `config.site.url`
+ * (see `hrefByLocaleForStaticRoute`) because the same map also feeds
+ * the `<link rel="alternate" hreflang>` tags in `Layout.astro`, and
+ * hreflang requires absolute URLs per spec. A *clickable* switcher
+ * must not be absolute: on `astro dev`, a preview deploy, a LAN host
+ * (`--host`), or anything that isn't the configured production
+ * origin, an absolute href navigates the visitor clean off the site
+ * they're actually browsing. Keeping only the path pins every switch
+ * to the current origin.
+ *
+ * Layout is unaffected — it re-resolves each entry through
+ * `new URL(u, websiteOrigin)`, so hreflang stays absolute either way.
+ */
+function toSameOriginPath(href: string): string {
+  try {
+    const u = new URL(href, Astro.url);
+    return `${u.pathname}${u.search}${u.hash}`;
+  } catch {
+    // Malformed value — hand it back untouched rather than dropping
+    // the link entirely; a broken href is still better than none.
+    return href;
+  }
+}
+
+function hrefForLocale(targetLocale: string): string {
+  // Preferred: use the URL the post detail route pre-computed for
+  // this sibling. Honours frontmatter `slug:` overrides across the
+  // translation set so a ru/tr click lands on the real slug.
+  if (hrefByLocale && hrefByLocale[targetLocale]) {
+    return toSameOriginPath(hrefByLocale[targetLocale]);
+  }
+  // H1+H6: pagination fallback. When the visitor is on `/posts/N/`
+  // (or `/<locale>/posts/N/`), the target locale's own Nth page may
+  // not exist (e.g. EN has 3 pages but TR has 1). Emitting
+  // `<targetLocale>/posts/` lands on page 1 of the target locale's
+  // posts index, which always exists.
+  const path = Astro.url.pathname;
+  if (PAGINATED_POSTS_RE.test(path)) {
+    return getRelativeLocaleUrl(targetLocale, "posts/");
+  }
+  // Fallback: strip the current locale prefix from the path so we can
+  // re-prefix for the target locale. Used by home / list / about /
+  // search pages that don't have per-page siblings.
+  const stripped = (() => {
+    const parts = path.split("/").filter(Boolean);
+    if (parts[0] && (LOCALES as readonly string[]).includes(parts[0])) {
+      return "/" + parts.slice(1).join("/");
+    }
+    return path || "/";
+  })();
+  return getRelativeLocaleUrl(targetLocale, stripped.replace(/^\//, ""));
+}
+
+/**
+ * Returns true when the target locale has a sibling for the current
+ * page. On non-post pages (no `availableLocales` prop) every locale
+ * is treated as available — the switcher then uses `hrefForLocale`'s
+ * fallback path-stripping, which doesn't 404 unless the locale-prefixed
+ * path doesn't exist (rare; the catch-all 404 page handles it).
+ */
+function isLocaleAvailable(targetLocale: string): boolean {
+  if (!availableLocales) return true;
+  return availableLocales.includes(targetLocale);
+}
+
+const code = (locale: string) => locale.toUpperCase();
+---
+
+<details
+  class:list={["locale-switcher relative", className]}
+  data-locale-switcher
+>
+  <summary
+    class:list={[
+      "group border-border bg-background hover:bg-muted/60 flex cursor-pointer",
+      "list-none items-center gap-1 rounded-md border px-2 py-1",
+      "text-xs font-semibold tracking-wider transition-colors",
+      "[&::-webkit-details-marker]:hidden",
+    ]}
+    aria-label={t.a11y.languageSwitcher}
+    title={LOCALE_LABELS[currentLocale]}
+    aria-haspopup="true"
+    aria-expanded="false"
+  >
+    <span aria-hidden="true">{code(currentLocale)}</span>
+    <svg
+      aria-hidden="true"
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      fill="none"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="1.5"
+      class="opacity-70 transition-transform group-open:rotate-180"
+    >
+      <path d="M2 4 L5 7 L8 4"></path>
+    </svg>
+  </summary>
+  <ul
+    class:list={[
+      "border-border bg-popover text-popover-foreground",
+      "absolute end-0 z-40 mt-1 min-w-full rounded-md border",
+      "py-1 shadow-lg",
+    ]}
+  >
+    {
+      LOCALES.map(locale => {
+        const isActive = locale === currentLocale;
+        const label = LOCALE_LABELS[locale];
+        const notTranslatedLabel = tplStr(t.a11y.notTranslated, { label });
+        // Locales without a sibling render as a disabled (non-link)
+        // row with a "not translated" hint so visitors don't land on
+        // a 404. Only applies when `availableLocales` was provided
+        // (post detail routes); non-post pages skip this and link
+        // every locale normally.
+        const available = isLocaleAvailable(locale);
+        return (
+          <li>
+            {" "}
+            {available ? (
+              <a
+                href={hrefForLocale(locale)}
+                hreflang={locale}
+                lang={locale}
+                title={label}
+                aria-current={isActive ? "page" : undefined}
+                class:list={[
+                  "flex items-center justify-between gap-3 px-3 py-1.5",
+                  "text-xs font-semibold tracking-wider transition-colors",
+                  isActive
+                    ? "bg-accent text-accent-foreground"
+                    : "hover:bg-muted",
+                ]}
+              >
+                {" "}
+                <span>{code(locale)}</span>{" "}
+                <span class="text-muted-foreground text-[10px] font-normal tracking-normal normal-case">
+                  {" "}
+                  {label}{" "}
+                </span>{" "}
+              </a>
+            ) : (
+              <span
+                title={notTranslatedLabel}
+                aria-disabled="true"
+                class="text-muted-foreground/60 flex cursor-not-allowed items-center justify-between gap-3 px-3 py-1.5 text-xs font-semibold tracking-wider"
+              >
+                {" "}
+                <span>{code(locale)}</span>{" "}
+                <span class="text-[10px] font-normal tracking-normal normal-case">
+                  {" "}
+                  {notTranslatedLabel}{" "}
+                </span>{" "}
+              </span>
+            )}{" "}
+          </li>
+        );
+      })
+    }
+  </ul>
+</details>
+<script>
+  // Guard against re-attaching document-level listeners on every
+  // View Transition swap. These listeners don't need per-page state
+  // (they query the DOM fresh on each event), so attaching once is
+  // sufficient and correct.
+  if (!window.__localeSwitcherBound) {
+    window.__localeSwitcherBound = true;
+
+    function closeOpenSwitchers(activeDetails?: HTMLDetailsElement) {
+      document
+        .querySelectorAll<HTMLDetailsElement>("details.locale-switcher[open]")
+        .forEach(el => {
+          if (el !== activeDetails) el.removeAttribute("open");
+        });
+    }
+
+    document.addEventListener("click", (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      if (!target || !target.closest("details.locale-switcher")) {
+        closeOpenSwitchers();
+      }
+    });
+
+    document.addEventListener("keydown", (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeOpenSwitchers();
+    });
+  }
+
+  // Per-page: wire up click-to-close on each switcher instance.
+  // This part IS per-page because the <details> elements are new DOM
+  // after each swap, but it only touches the current elements.
+  function bindSwitchers() {
+    document
+      .querySelectorAll<HTMLDetailsElement>("details.locale-switcher")
+      .forEach(el => {
+        if (el.dataset.bound) return;
+        el.dataset.bound = "1";
+        el.addEventListener("click", (event: MouseEvent) => {
+          const target = event.target as Element | null;
+          if (target?.closest("a")) {
+            el.removeAttribute("open");
+          }
+        });
+        el.addEventListener("toggle", () => {
+          const summary = el.querySelector("summary");
+          summary?.setAttribute("aria-expanded", String(el.open));
+        });
+      });
+  }
+  bindSwitchers();
+  document.addEventListener("astro:after-swap", bindSwitchers);
+</script>

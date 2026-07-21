@@ -1,0 +1,54 @@
+---
+/**
+ * Locale-prefixed archives page — `src/pages/[locale]/archives.astro`.
+ *
+ * Companion to `src/pages/archives.astro` (default locale). Both
+ * routes render the shared `ArchivesBody.astro` body; this one
+ * walks `getCollection("posts")` once and partitions by locale
+ * via `groupNonDefaultLocale`, emitting one path per non-default locale.
+ *
+ * Route gating mirrors the `enableGalleries` pattern: `getStaticPaths`
+ * returns `[]` when `features.showArchives === false`, so the file
+ * still exists at build time but no page is rendered and the URL
+ * stays 404. The Header component already gates the nav link on the
+ * same flag, so the two never disagree.
+ */
+import { type CollectionEntry, getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import ArchivesBody from "@/components/ArchivesBody.astro";
+import { postFilter } from "@/utils/postFilter";
+import { groupNonDefaultLocale } from "@/utils/groupNonDefaultLocale";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+import { localeParam } from "@/i18n/locales";
+import { useTranslations } from "@/i18n";
+import config from "@/config";
+
+type Post = CollectionEntry<"posts">;
+
+export async function getStaticPaths() {
+  if (!config.features.showArchives) return [];
+  const all = await getCollection("posts");
+  const filtered = all.filter(postFilter);
+  const byLocale = await groupNonDefaultLocale<Post>(async () => filtered);
+  return [...byLocale.entries()].map(([locale, posts]) => ({
+    params: { locale },
+    props: { posts },
+  }));
+}
+
+const locale = localeParam(Astro.params.locale);
+const { posts } = Astro.props;
+const t = useTranslations(locale);
+const hrefByLocale = hrefByLocaleForStaticRoute(
+  "archives",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  locale
+);
+---
+
+<Layout
+  title={`${t.pages.archivesTitle} | ${config.site.title}`}
+  hrefByLocale={hrefByLocale}
+>
+  <ArchivesBody {locale} {posts} />
+</Layout>

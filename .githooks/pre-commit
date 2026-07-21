@@ -1,0 +1,39 @@
+#!/usr/bin/env sh
+# Pre-commit hook — keeps the format/lint gate honest for every
+# contributor. Issues.md #21: previously the `pnpm format:check` step
+# in CI was the only line of defence; that meant contributors only
+# learned their PR was off-format after the CI bot flagged it.
+#
+# This hook runs the same checks locally before the commit is even
+# created, so contributors can fix issues in-editor before pushing.
+#
+# Wired via `scripts/install-hooks.mjs`, which sets
+# `git config core.hooksPath .githooks` and is run automatically by
+# the `prepare` script in package.json. Manual install:
+#
+#   pnpm setup:hooks
+#
+# Scope: format-check + lint + working-tree secret scan. We deliberately do NOT run
+# `astro check` or `vitest run` on every commit — both are slow
+# enough (~10–40s each) that contributors will skip them via
+# `--no-verify` and we lose the benefit. CI runs the full battery.
+
+set -e
+
+# `pnpm` resolves to the version pinned in `packageManager`. If `pnpm`
+# is unavailable (e.g. a contributor cloned without going through `pnpm install`), fail
+# loud with a remediation hint.
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "[pre-commit] pnpm not found on PATH." >&2
+  echo "[pre-commit] Run \`corepack enable\` then \`pnpm install\`." >&2
+  exit 1
+fi
+
+echo "[pre-commit] running format:check..."
+pnpm format:check
+
+echo "[pre-commit] running lint..."
+pnpm lint
+
+echo "[pre-commit] running secret:scan (working tree)..."
+GITLEAKS_ARGS=--no-git pnpm secret:scan

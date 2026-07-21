@@ -1,0 +1,14 @@
+---
+import NotFoundBody from "@/components/NotFoundBody.astro";
+import { LOCALES, DEFAULT_LOCALE, localeParam } from "@/i18n/locales";
+
+export async function getStaticPaths() {
+  return LOCALES.filter(l => l !== DEFAULT_LOCALE).map(locale => ({
+    params: { locale },
+  }));
+}
+
+const locale = localeParam(Astro.params.locale);
+---
+
+<NotFoundBody locale={locale} />

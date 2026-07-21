@@ -1,0 +1,341 @@
+---
+import { getRelativeLocaleUrl } from "astro:i18n";
+import IconUnderline from "@/assets/icons/IconUnderline.svg";
+import IconMenuDeep from "@/assets/icons/IconMenuDeep.svg";
+import IconSunHigh from "@/assets/icons/IconSunHigh.svg";
+import IconSearch from "@/assets/icons/IconSearch.svg";
+import IconMoon from "@/assets/icons/IconMoon.svg";
+import IconX from "@/assets/icons/IconX.svg";
+import LinkButton from "./LinkButton.astro";
+import LocaleSwitcher from "./LocaleSwitcher.astro";
+import { stripBase, stripLocale } from "@/utils/withBase";
+import { useTranslations } from "@/i18n";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import config from "@/config";
+
+const { site, features } = config;
+const locale = Astro.currentLocale ?? DEFAULT_LOCALE;
+const t = useTranslations(locale);
+
+// Strip the base prefix so isActive comparisons work regardless of deploy subdirectory.
+// e.g. with base "/blog": "/blog/posts/slug" → "/posts/slug"
+const relativePath = stripBase(Astro.url.pathname);
+const pathWithoutTrailingSlash =
+  relativePath.endsWith("/") && relativePath !== "/"
+    ? relativePath.slice(0, -1)
+    : relativePath;
+
+const currentPath = stripLocale(pathWithoutTrailingSlash, locale);
+
+const isActive = (path: string) => {
+  const currentPathArray = currentPath.split("/").filter(p => p.trim());
+  const pathArray = path.split("/").filter(p => p.trim());
+  return currentPath === path || currentPathArray[0] === pathArray[0];
+};
+
+/**
+ * Forwarded by post detail routes so the locale switcher can route to
+ * each sibling's actual rendered URL (which may differ from the
+ * file-path-derived slug when a frontmatter `slug:` override is in play).
+ * For pages without per-locale siblings (home, lists, about, search)
+ * the prop is undefined and the switcher falls back to its default
+ * behaviour: strip the current locale prefix from `Astro.url.pathname`
+ * and re-prefix with the target locale.
+ */
+type Props = {
+  hrefByLocale?: Readonly<Record<string, string>>;
+  availableLocales?: readonly string[];
+};
+const { hrefByLocale, availableLocales } = Astro.props as Props;
+---
+
+<!--
+  Skip-link colours intentionally use `bg-background text-accent`.
+  If you change `--accent` in src/styles/theme.css, re-verify the
+  contrast against `--background` here — low-contrast accents make
+  the skip link invisible to keyboard / screen-reader users, which
+  defeats its purpose. The pinned defaults (#0b7a33 light / #4ade80
+  dark on #fdfdfd / #212737) pass WCAG AA at large sizes; a softer
+  accent needs a re-check.
+-->
+<a
+  id="skip-to-content"
+  href="#main-content"
+  class="bg-background text-accent absolute inset-s-16 -top-full z-50 px-3 py-2 backdrop-blur-lg transition-all focus:top-4"
+>
+  {t.a11y.skipToContent}
+</a>
+
+<header
+  class="app-layout flex flex-col items-center justify-between sm:flex-row"
+>
+  <div
+    class="border-border bg-background relative flex w-full items-baseline justify-between border-b py-4 sm:items-center sm:py-6"
+  >
+    <a
+      href={getRelativeLocaleUrl(locale, "")}
+      class="absolute py-1 text-xl leading-8 font-semibold whitespace-nowrap sm:static sm:my-auto sm:text-2xl sm:leading-none"
+    >
+      {site.title}
+    </a>
+
+    <nav
+      id="nav-menu"
+      class="flex w-full flex-col items-center sm:ms-2 sm:flex-row sm:justify-end sm:space-x-4 sm:py-0"
+    >
+      <button
+        id="menu-btn"
+        class="focus-outline self-end p-2 sm:hidden"
+        aria-label={t.a11y.openMenu}
+        aria-expanded="false"
+        aria-controls="menu-items"
+        data-label-open={t.a11y.openMenu}
+        data-label-close={t.a11y.closeMenu}
+      >
+        <IconX id="close-icon" class="hidden" aria-hidden="true" />
+        <IconMenuDeep id="menu-icon" aria-hidden="true" />
+      </button>
+
+      <ul
+        id="menu-items"
+        class="[&>li>a]:hover:text-accent mt-4 hidden w-44 grid-cols-2 place-content-center gap-2 sm:mt-0 sm:flex sm:w-auto sm:gap-x-5 sm:gap-y-0 sm:[&>li]:h-8 [&>li>a]:block [&>li>a]:px-4 [&>li>a]:py-3 [&>li>a]:text-center [&>li>a]:font-medium sm:[&>li>a]:px-2 sm:[&>li>a]:py-1"
+      >
+        <li class="col-span-2">
+          <a
+            href={getRelativeLocaleUrl(locale, "posts")}
+            class:list={{ "active-nav": isActive("/posts") }}
+            aria-current={isActive("/posts") ? "page" : undefined}
+          >
+            {t.nav.posts}
+          </a>
+        </li>
+        <li class="col-span-2">
+          <a
+            href={getRelativeLocaleUrl(locale, "projects")}
+            class:list={{ "active-nav": isActive("/projects") }}
+            aria-current={isActive("/projects") ? "page" : undefined}
+          >
+            {t.nav.projects}
+          </a>
+        </li>
+        {
+          features.enableGalleries && (
+            <li class="col-span-2">
+              <a
+                href={getRelativeLocaleUrl(locale, "galleries")}
+                class:list={{ "active-nav": isActive("/galleries") }}
+                aria-current={isActive("/galleries") ? "page" : undefined}
+              >
+                {t.nav.galleries}
+              </a>
+            </li>
+          )
+        }
+        {
+          features.showArchives && (
+            <li class="col-span-2">
+              <a
+                href={getRelativeLocaleUrl(locale, "archives")}
+                class:list={{ "active-nav": isActive("/archives") }}
+                aria-current={isActive("/archives") ? "page" : undefined}
+              >
+                {t.nav.archives}
+              </a>
+            </li>
+          )
+        }
+        <li class="col-span-2">
+          <a
+            href={getRelativeLocaleUrl(locale, "about")}
+            class:list={{ "active-nav": isActive("/about") }}
+            aria-current={isActive("/about") ? "page" : undefined}
+          >
+            {t.nav.about}
+          </a>
+        </li>
+        {
+          features.search !== false && (
+            <li class="col-span-1 flex items-center justify-center">
+              <LinkButton
+                href={getRelativeLocaleUrl(locale, "search")}
+                class:list={["focus-outline relative size-8"]}
+                title={t.nav.search}
+                aria-label={t.nav.search}
+                aria-current={isActive("/search") ? "page" : undefined}
+              >
+                <IconSearch
+                  aria-hidden="true"
+                  class="absolute top-1/2 left-1/2 size-6 -translate-x-1/2 -translate-y-1/2"
+                />
+                <span class="sr-only">{t.nav.search}</span>
+                {isActive("/search") && (
+                  <IconUnderline
+                    aria-hidden="true"
+                    class="absolute bottom-0 w-6 scale-125 max-sm:inset-s-2"
+                  />
+                )}
+              </LinkButton>
+            </li>
+          )
+        }
+        <li class="col-span-1 flex items-center justify-center">
+          <LocaleSwitcher
+            availableLocales={availableLocales}
+            hrefByLocale={hrefByLocale}
+          />
+        </li>
+        {
+          features.lightAndDarkMode && (
+            <li class="col-span-1 flex items-center justify-center">
+              <button
+                id="theme-btn"
+                class="focus-outline hover:[&>svg]:stroke-accent relative size-12 p-4 sm:size-8"
+                title={t.a11y.toggleTheme}
+                aria-label={t.a11y.toggleTheme}
+                aria-pressed="false"
+              >
+                <IconMoon
+                  aria-hidden="true"
+                  class="absolute top-[50%] left-[50%] translate-[-50%] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90"
+                />
+                <IconSunHigh
+                  aria-hidden="true"
+                  class="absolute top-[50%] left-[50%] translate-[-50%] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0"
+                />
+              </button>
+            </li>
+          )
+        }
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<script>
+  function toggleNav() {
+    const menuBtn = document.querySelector<HTMLButtonElement>("#menu-btn");
+    const menuItems = document.querySelector("#menu-items");
+    const menuIcon = document.querySelector("#menu-icon");
+    const closeIcon = document.querySelector("#close-icon");
+    if (!menuBtn || !menuItems || !menuIcon || !closeIcon) return;
+
+    // The server-rendered Astro template always sets these data attributes
+    // from the i18n strings; bail out if the template contract is broken.
+    const openLabel = menuBtn.dataset.labelOpen;
+    const closeLabel = menuBtn.dataset.labelClose;
+    if (!openLabel || !closeLabel) return;
+
+    // Guard against re-attaching the click listener on every swap.
+    // The <button> element survives View Transitions (it's in the
+    // persistent header), so we only need to bind once.
+    if (menuBtn.dataset.navBound) return;
+    menuBtn.dataset.navBound = "1";
+
+    // Tracks the element that had focus immediately before the menu
+    // was opened so we can restore it on close. Storing on `window`
+    // (not a module-local closure) keeps the state alive across the
+    // `astro:after-swap` reentry — the menu button is in the
+    // persistent header and the *document's* previously-focused
+    // element is what users expect to come back to.
+    type WinWithFocusMemory = typeof window & {
+      __menuOpener?: HTMLElement | null;
+    };
+    const win = window as WinWithFocusMemory;
+
+    const setMenuOpen = (open: boolean) => {
+      menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      menuBtn.setAttribute("aria-label", open ? closeLabel : openLabel);
+      menuItems.classList.toggle("hidden", !open);
+      menuItems.classList.toggle("grid", open);
+      menuIcon.classList.toggle("hidden", open);
+      closeIcon.classList.toggle("hidden", !open);
+    };
+
+    menuBtn.addEventListener("click", () => {
+      const openMenu = menuBtn.getAttribute("aria-expanded") === "true";
+      if (openMenu) {
+        // Closing: restore focus to whatever element opened the menu.
+        const opener = win.__menuOpener;
+        win.__menuOpener = null;
+        setMenuOpen(false);
+        if (opener && document.contains(opener)) {
+          // Defer so the button's own blur completes before we move
+          // focus — some browsers (Safari) drop the restore otherwise.
+          requestAnimationFrame(() => opener.focus({ preventScroll: true }));
+        } else {
+          menuBtn.focus({ preventScroll: true });
+        }
+      } else {
+        // Opening: remember the current focus so we can restore it.
+        win.__menuOpener =
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : menuBtn;
+        setMenuOpen(true);
+      }
+    });
+
+    // Escape closes the menu AND restores focus to the opener. Bound
+    // on `document` (not the button) so it works regardless of which
+    // descendant of the open menu currently has focus.
+    if (!menuBtn.dataset.navEscBound) {
+      menuBtn.dataset.navEscBound = "1";
+      document.addEventListener("keydown", (event: KeyboardEvent) => {
+        if (event.key !== "Escape") return;
+        if (menuBtn.getAttribute("aria-expanded") !== "true") return;
+        const opener = win.__menuOpener;
+        win.__menuOpener = null;
+        setMenuOpen(false);
+        if (opener && document.contains(opener)) {
+          requestAnimationFrame(() => opener.focus({ preventScroll: true }));
+        } else {
+          menuBtn.focus({ preventScroll: true });
+        }
+      });
+    }
+  }
+
+  // Wire up the skip-to-content link so activating it moves keyboard focus
+  // onto <main id="main-content"> instead of leaving it stranded on <body>.
+  // Without this, the next Tab press would cycle back through the entire
+  // header navigation, defeating the purpose of the skip link for keyboard
+  // and screen-reader users. We preventDefault so we can sync the URL hash
+  // and focus call in one place (smooth-scroll is handled by global.css's
+  // scroll-smooth on <html> + :target scroll-margin-block).
+  function bindSkipLink() {
+    const skipLink =
+      document.querySelector<HTMLAnchorElement>("#skip-to-content");
+    if (!skipLink) return;
+    const href = skipLink.getAttribute("href");
+    if (!href || !href.startsWith("#")) return;
+    const targetId = href.slice(1);
+
+    if (!skipLink.dataset.skipBound) {
+      skipLink.addEventListener("click", event => {
+        const target = document.getElementById(targetId);
+        if (!(target instanceof HTMLElement)) return;
+
+        event.preventDefault();
+
+        // R10: `preventScroll: true` previously blocked the focus call
+        // from scrolling the viewport — `preventDefault()` already
+        // stopped the native hash navigation from doing it. Net
+        // effect was a focus shift with no scroll, visible at any
+        // (non-zero) scroll offset. Let focus perform its default
+        // `scrollIntoView` so the viewport moves WITH the focus.
+        requestAnimationFrame(() => {
+          target.focus();
+          if (window.location.hash !== `#${targetId}`) {
+            history.pushState(null, "", `#${targetId}`);
+          }
+        });
+      });
+      skipLink.dataset.skipBound = "1";
+    }
+  }
+
+  toggleNav();
+  bindSkipLink();
+  document.addEventListener("astro:after-swap", toggleNav);
+  document.addEventListener("astro:after-swap", bindSkipLink);
+</script>

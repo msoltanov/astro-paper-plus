@@ -1,0 +1,254 @@
+---
+import { getRelativeLocaleUrl } from "astro:i18n";
+import { stripBase, stripLocale } from "@/utils/withBase";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import { useTranslations } from "@/i18n";
+import { safeJsonLd } from "@/utils/safeJsonLd";
+const locale = Astro.currentLocale ?? DEFAULT_LOCALE;
+const t = useTranslations(locale);
+
+// Strip base prefix and trailing slash, then locale prefix so segments
+// reflect the logical page path only.
+const pathWithoutBase = stripBase(Astro.url.pathname).replace(/\/+$/, "");
+const currentUrlPath = stripLocale(pathWithoutBase, locale);
+
+// Raw route segments for URL generation — keep these separate from
+// the display labels below so a paginated label like "Posts (page 2)"
+// never leaks into a JSON-LD `item` URL.
+const rawSegments = currentUrlPath.split("/").slice(1).filter(Boolean);
+
+// Slug → localized label map. Restored after the H2 refactor dropped
+// it: without this, /ru/about rendered the raw English "about"
+// instead of "О сайте", and the JSON-LD `name` field on every
+// locale page regressed to the slug. `galleries` was missing from
+// the original map and is added here so /ru/galleries reads "Галереи".
+// `archives` mirrors the same pattern for /<locale>/archives/.
+const navLabels: Record<string, string> = {
+  posts: t.nav.posts,
+  projects: t.nav.projects,
+  about: t.nav.about,
+  search: t.nav.search,
+  galleries: t.nav.galleries,
+  archives: t.nav.archives,
+  tags: t.nav.tags,
+};
+const decodeSegment = (value: string) => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+// Display labels — derived from `rawSegments` and shown in both the
+// visible <nav> and the JSON-LD `name` field. Pagination gets a
+// localized "Posts (page N)" label on page 2+; page 1 of the posts
+// archive reads just `t.nav.posts` (the archive root URL is /posts/,
+// not /posts/1/, so the breadcrumb must match). Every other segment
+// uses `navLabels[seg] ?? decodeSegment(seg)` so locale pages get
+// translated labels instead of the raw English slug.
+//
+// R6: pagination is gated on `/^\d+$/`. Mounting this component on a
+// future nested posts URL (`/posts/examples/foo/`) would otherwise
+// render the crumb as "Posts (page examples)" with a JSON-LD `name`
+// naming the unreadable slug. The guard makes the decision
+// conditional on a real numeric pagination segment.
+const isPaginationPage =
+  rawSegments[0] === "posts" &&
+  rawSegments.length >= 2 &&
+  /^\d+$/.test(rawSegments[1] ?? "");
+const displayLabels: string[] = [];
+if (isPaginationPage) {
+  // Paginated route (/posts/2/, /posts/3/, …) — collapse the visible
+  // first two segments ("posts", "<page>") into one localized label.
+  const pageNumber = rawSegments[1]!;
+  displayLabels.push(
+    `${t.nav.posts} (${t.pagination.page.toLowerCase()} ${pageNumber})`
+  );
+  // Anything past `[page]` (rare — we don't build deeper crumbs today,
+  // but the visible nav must still match the URL depth).
+  for (let i = 2; i < rawSegments.length; i++) {
+    displayLabels.push(
+      navLabels[rawSegments[i]!] ?? decodeSegment(rawSegments[i]!)
+    );
+  }
+} else {
+  // Generic branch — handles the archive root (/posts/), every
+  // non-posts route, and any future nested-posts URL whose second
+  // segment isn't a numeric pagination token. `rawSegments === ["posts"]`
+  // iterates once and resolves `navLabels.posts` → `t.nav.posts`.
+  for (const seg of rawSegments)
+    displayLabels.push(navLabels[seg] ?? decodeSegment(seg));
+}
+
+/**
+ * BreadcrumbList JSON-LD (E3 structured data enhancement).
+ *
+ * Builds a Schema.org BreadcrumbList mirroring the visible <nav> above.
+ * Each ListItem has a position (1-indexed) and a name; the "item" URL
+ * is the canonical absolute URL for the page at that depth so
+ * search engines can resolve it without re-crawling the page.
+ *
+ * The `item` URL is derived from `rawSegments` (raw route segments),
+ * NOT from the localized display labels. On paginated post pages the
+ * visible label is "Posts (page N)", which is not a valid URL segment
+ * — building JSON-LD URLs from the label would produce
+ * `…/Posts` / `…/ru/Записи` and break schema validation.
+ *
+ * Skipped for the home page: schema.org's BreadcrumbList is intended
+ * for *navigation trails* away from the home, and a single-item list
+ * pointing at `/` is just noise.
+ */
+const siteOrigin = Astro.site?.origin ?? new URL(Astro.url).origin;
+const homeUrl = new URL(getRelativeLocaleUrl(locale, ""), siteOrigin).href;
+const withTrailingSlash = (p: string): string => {
+  const stripped = p.replace(/\/+$/, "");
+  return stripped === "" ? "/" : `${stripped}/`;
+};
+const breadcrumbItems: Array<{ name: string; url: string }> = [
+  { name: t.nav.home, url: homeUrl },
+];
+// Accumulated paths for each non-home crumb, aligned by index with
+// `displayLabels`. Each entry is the path WITHOUT a locale prefix
+// (the JSON-LD block prefixes it; the visible nav passes through
+// `getRelativeLocaleUrl(locale, …)` which adds it itself). Building
+// this once and consuming it in both consumers kills the
+// duplicated-accumulator hazard that the previous code had — the
+// JSON-LD block accumulated via `runningPath`, while the visible
+// nav fell back to `getRelativeLocaleUrl(locale, seg)` (single
+// segment only). For 2-level URLs the two happened to agree; for
+// any deeper route they would drift and emit inconsistent `item`
+// URLs vs visible `href`s.
+const visibleHrefs: string[] = [];
+if (rawSegments.length > 0) {
+  if (isPaginationPage) {
+    // Paginated route — first URL is /posts/<N>/; remaining crumbs
+    // accumulate past the page number so a hypothetical
+    // /posts/<N>/<extra>/ chain renders consistently. Emitting
+    // /posts/1/ in the JSON-LD would point crawlers at a 404 (Astro's
+    // paginator never emits that path), so page 1 stops at the
+    // generic branch above with /posts/ as its single entry.
+    //
+    // Entries are stored as absolute paths (`/posts/<N>`) so the
+    // JSON-LD block can prepend the locale prefix without inserting
+    // a slash — `/ru` + `/posts/2` = `/ru/posts/2`, not
+    // `/ruposts/2`. The visible nav feeds the same values into
+    // `getRelativeLocaleUrl(locale, …)` which handles leading-slash
+    // input transparently.
+    visibleHrefs.push(`/posts/${rawSegments[1]!}`);
+    let runningPath = visibleHrefs[0]!;
+    for (let i = 2; i < rawSegments.length; i++) {
+      runningPath += `/${rawSegments[i]!}`;
+      visibleHrefs.push(runningPath);
+    }
+  } else {
+    // Generic — archive root (/posts/), every non-posts route, and
+    // any future non-numeric-segments-under-/posts/ URL. Accumulates
+    // one segment at a time so a future /a/b/c/ URL renders
+    // Home » a » b » c with each crumb linking to its accumulated
+    // path (not just the single segment). Each emitted path is
+    // absolute (leading `/`) so the locale-prefix concatenation in
+    // the JSON-LD block below produces `/ru/posts/` rather than
+    // `/ruposts/` — see the pagination branch for the same rationale.
+    let runningPath = "";
+    for (let i = 0; i < rawSegments.length; i++) {
+      runningPath += `/${rawSegments[i]!}`;
+      visibleHrefs.push(runningPath);
+    }
+  }
+  // JSON-LD URLs: each accumulated path is prefixed with the locale
+  // (when non-default) and normalised through `withTrailingSlash()`
+  // so the `item` URL matches the page's `<link rel="canonical">`
+  // byte-for-byte (canonical ends with `/`; previously the
+  // breadcrumb omitted it, which Google's structured-data validator
+  // flagged as inconsistent).
+  const localePrefix = locale === DEFAULT_LOCALE ? "" : `/${locale}`;
+  for (let i = 0; i < visibleHrefs.length; i++) {
+    breadcrumbItems.push({
+      name: displayLabels[i]!,
+      url: new URL(
+        withTrailingSlash(`${localePrefix}${visibleHrefs[i]}`),
+        siteOrigin
+      ).href,
+    });
+  }
+}
+const breadcrumbJsonLd =
+  breadcrumbItems.length > 1
+    ? safeJsonLd({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: breadcrumbItems.map((item, i) => ({
+          "@type": "ListItem",
+          position: i + 1,
+          name: item.name,
+          item: item.url,
+        })),
+      })
+    : "";
+---
+
+<nav class="app-layout mt-8 mb-1" aria-label="breadcrumb">
+  <ul
+    class="font-light [&>li]:inline [&>li:not(:last-child)>a]:hover:opacity-100"
+  >
+    <li>
+      <a href={getRelativeLocaleUrl(locale, "")} class="opacity-80">
+        {t.nav.home}
+      </a>
+      <span aria-hidden="true" class="opacity-80">&raquo;</span>
+    </li>
+    {
+      // The visible nav uses `displayLabels` so the first crumb on
+      // paginated posts reads "Posts (page N)". Each non-final crumb
+      // links to its accumulated `visibleHrefs[index]` path —
+      // `getRelativeLocaleUrl(locale, …)` adds the locale prefix and
+      // routing consistently with the JSON-LD `item` URLs above.
+      // The previous shape used single-segment URLs in the generic
+      // branch (`getRelativeLocaleUrl(locale, seg)`), which 404'd
+      // for any future nested route. Today 2-level URLs mask the
+      // bug, but the unified accumulator removes it preemptively.
+      displayLabels.map((label, index) => {
+        const isLast = index + 1 === displayLabels.length;
+        // R6: pagination href tracks `isPaginationPage`, so a future
+        // /posts/<non-numeric>/ page never inherits the
+        // "posts/<first-segment>" passthrough. The accumulated
+        // `visibleHrefs` already encodes this — pagination's index
+        // 0 is "posts/<N>", generic index 0 is the first segment.
+        const href = visibleHrefs[index]
+          ? getRelativeLocaleUrl(locale, visibleHrefs[index]!)
+          : getRelativeLocaleUrl(locale, "");
+        return isLast ? (
+          <li>
+            {" "}
+            <span
+              class:list={["capitalize opacity-75", { lowercase: index > 0 }]}
+              aria-current="page"
+            >
+              {" "}
+              {/* make the last part lowercase in Home > Tags > some-tag */}{" "}
+              {label}{" "}
+            </span>{" "}
+          </li>
+        ) : (
+          <li>
+            {" "}
+            <a href={href} class="capitalize opacity-70">
+              {" "}
+              {label}{" "}
+            </a>{" "}
+            <span aria-hidden="true" class="opacity-70">
+              {" "}
+              &raquo;{" "}
+            </span>{" "}
+          </li>
+        );
+      })
+    }
+  </ul>
+</nav>
+{
+  breadcrumbJsonLd && (
+    <script is:inline type="application/ld+json" set:html={breadcrumbJsonLd} />
+  )
+}

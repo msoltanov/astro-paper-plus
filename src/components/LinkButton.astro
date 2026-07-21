@@ -1,0 +1,36 @@
+---
+import type { HTMLAttributes } from "astro/types";
+type Props = { disabled?: boolean } & HTMLAttributes<"a">;
+const { disabled, href, class: className, ...attrs } = Astro.props;
+const Button = disabled ? "span" : "a";
+// When rendered as a disabled `<span>`, only safe static attrs are
+// forwarded. Event handlers (`onclick`, `onfocus`, …) silently
+// no-op on `<span>` and historically leaked through as dead
+// attributes that confused future readers.
+const SAFE_ATTR_KEYS = new Set([
+  "class",
+  "id",
+  "title",
+  "role",
+  "tabindex",
+  "lang",
+  "dir",
+]);
+const passthrough = disabled
+  ? Object.fromEntries(
+      Object.entries(attrs).filter(([k]) => SAFE_ATTR_KEYS.has(k))
+    )
+  : { ...attrs, href };
+---
+
+<Button
+  aria-disabled={disabled}
+  class:list={[
+    "group inline-flex items-center gap-1",
+    { "hover:text-accent": !disabled },
+    className,
+  ]}
+  {...passthrough}
+>
+  <slot />
+</Button>

@@ -1,0 +1,46 @@
+name: Question / Docs / Discussion
+description: A question, a docs improvement request, or a non-actionable discussion.
+title: "\ud83d\udcac "
+labels: ["question"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For **questions about usage**, please first read the per-locale "how to
+        configure" guides under `src/content/posts/<locale>/` and skim existing
+        issues. If you still need help, fill out the form below.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What is this about?
+      options:
+        - Question about configuration / usage
+        - Question about a specific locale
+        - Documentation is unclear / incomplete
+        - General discussion (e.g. a design proposal)
+        - Other (please describe below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: body
+    attributes:
+      label: Tell us more
+      description: |
+        Describe what you're trying to do, what you've tried, and the result.
+        Links to relevant code paths or pages in the docs are very helpful.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Environment (optional)
+      description: |
+        Node version, pnpm version, branch, repo state (modified / clean),
+        anything that might be relevant.
+    validations:
+      required: false

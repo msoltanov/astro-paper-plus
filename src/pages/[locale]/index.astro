@@ -1,0 +1,34 @@
+---
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import HomePage from "@/components/HomePage.astro";
+import { postsByLocale } from "@/utils/postsByLocale";
+import { useTranslations } from "@/i18n";
+import { LOCALES, DEFAULT_LOCALE, localeParam } from "@/i18n/locales";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+import config from "@/config";
+
+// See `src/components/HomePage.astro` for the rationale behind this
+// thin wrapper pattern. The shared HomePage body lives there.
+export async function getStaticPaths() {
+  return LOCALES.filter(l => l !== DEFAULT_LOCALE).map(locale => ({
+    params: { locale },
+  }));
+}
+const locale = localeParam(Astro.params.locale);
+const t = useTranslations(locale);
+const posts = await getCollection("posts", postsByLocale(locale));
+const hrefByLocale = hrefByLocaleForStaticRoute(
+  "",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  locale
+);
+---
+
+<Layout
+  title={t.pages.homeTitle ?? config.site.title}
+  description={t.pages.homeDesc ?? config.site.description}
+  hrefByLocale={hrefByLocale}
+>
+  <HomePage locale={locale} posts={posts} />
+</Layout>

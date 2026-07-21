@@ -1,0 +1,249 @@
+@plugin "@tailwindcss/typography";
+
+@layer base {
+  /* ===== Override default Tailwind Typography styles ===== */
+  .app-prose {
+    @apply prose;
+
+    h1,
+    h2,
+    h3,
+    h4,
+    th {
+      @apply text-foreground mb-3;
+    }
+    h3 {
+      @apply italic;
+    }
+    p,
+    strong,
+    ol,
+    ul,
+    figcaption,
+    table,
+    code {
+      @apply text-foreground;
+    }
+    a {
+      @apply text-foreground hover:text-accent wrap-break-word decoration-dashed underline-offset-4 focus-visible:no-underline;
+    }
+    ul {
+      @apply overflow-x-clip;
+    }
+    li {
+      @apply marker:text-accent;
+    }
+    hr {
+      @apply border-border;
+    }
+    img {
+      @apply border-border mx-auto border;
+    }
+    img[role="button"] {
+      @apply cursor-zoom-in;
+
+      &:focus-visible {
+        @apply outline-2 outline-offset-2 outline-dashed;
+      }
+    }
+    figcaption {
+      @apply opacity-75;
+    }
+    table {
+      th,
+      td {
+        @apply border-border border p-2;
+      }
+      th {
+        @apply py-1.5;
+      }
+    }
+  }
+
+  /* Scroll-shadows on the horizontal scroll container inside <ResponsiveTable>.
+     The pseudo-elements sit ABOVE the table so the fade is visible even when
+     the cells are opaque (striped rows). The companion inline script in
+     ResponsiveTable.astro toggles `data-at-start` / `data-at-end` on the
+     container based on scroll position, which hides the fade on whichever
+     side has no more content. */
+  .table-scroll {
+    --table-fade-width: 28px;
+  }
+  .table-scroll::before,
+  .table-scroll::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: var(--table-fade-width);
+    pointer-events: none;
+    z-index: 1;
+    opacity: 1;
+    transition: opacity 150ms ease-out;
+  }
+  .table-scroll::before {
+    left: 0;
+    background: linear-gradient(
+      to right,
+      var(--background),
+      color-mix(in srgb, var(--background) 0%, transparent)
+    );
+  }
+  .table-scroll::after {
+    right: 0;
+    background: linear-gradient(
+      to left,
+      var(--background),
+      color-mix(in srgb, var(--background) 0%, transparent)
+    );
+  }
+  .table-scroll[data-at-start]::before,
+  .table-scroll[data-at-end]::after {
+    opacity: 0;
+  }
+  /* On wide enough viewports the table fits and there's no scroll — drop the
+     fades entirely so they never flash on initial paint. */
+  @media (min-width: 1024px) {
+    .table-scroll::before,
+    .table-scroll::after {
+      display: none;
+    }
+  }
+
+  code {
+    @apply bg-muted/75 text-foreground rounded p-1 wrap-break-word before:content-none after:content-none;
+  }
+  .astro-code code {
+    @apply flex-[1_0_100%] bg-inherit p-0;
+  }
+  blockquote {
+    @apply border-s-accent/80 wrap-break-word opacity-80;
+  }
+  /*
+   * Hide <p>/<ul> children of details elements that render as the
+   * small inline chips — the callout (`details.callout`, see
+   * rehype-callouts) keeps its own full styling, and the TOC's
+   * mobile collapsible (`details.toc-mobile`, see TableOfContents.astro)
+   * does the same.
+   *
+   * Earlier this rule matched every `details:not(.callout)` on the
+   * page, which silently collapsed any user-authored `<details>`
+   * inside Markdown content (their inner paragraphs and lists would
+   * disappear on render). Scoping to `.toc-mobile` (and `.callout`'s
+   * negative-look-alike siblings handled by rehype-callouts) keeps
+   * user content intact.
+   */
+  details.toc-mobile {
+    @apply text-foreground inline-block cursor-pointer select-none [&_p]:hidden [&_ul]:my-0!;
+  }
+  summary {
+    @apply focus-visible:outline-accent focus-visible:no-underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-dashed;
+  }
+  pre {
+    @apply focus-visible:outline-accent focus-visible:border-transparent focus-visible:outline-2 focus-visible:outline-dashed;
+  }
+
+  /* Mermaid diagrams. The remark plugin emits a <pre class="mermaid">
+     placeholder that the client-side renderer replaces with an inline <svg>.
+     We override the default code-block chrome so the SVG sits cleanly inside
+     the article. We re-state the explicit overrides Tailwind Typography
+     applies to <pre> children (background, padding, font) to keep the
+     rendered SVG visually distinct from regular code fences. */
+  pre.mermaid,
+  .app-prose pre.mermaid {
+    @apply bg-background text-foreground border-border mx-auto my-6 overflow-x-auto rounded-md border p-4 text-center text-sm leading-relaxed;
+  }
+  pre.mermaid:focus-visible {
+    @apply outline-2 outline-dashed;
+  }
+  pre.mermaid svg {
+    @apply mx-auto block h-auto max-w-full;
+  }
+  pre.mermaid.mermaid-error {
+    @apply text-foreground border-red-500/60 bg-red-500/10 text-left font-mono text-xs whitespace-pre-wrap;
+  }
+
+  /* ===== Embeds (video / audio / provider iframes) =====
+     `remarkEmbeds` (src/utils/remarkEmbeds.ts) emits figure[data-embed]
+     wrappers; the MDX `<VideoEmbed>` / `<AudioEmbed>` components emit the
+     same wrapper. We keep the styling in one place so the DOM stays
+     identical regardless of authoring path.
+
+     - Default 16:9 aspect ratio for video iframes (works for every major
+       provider; if the ratio drifts, the iframe preserves its native ratio
+       and we just round the corners + border it).
+     - Audio players get a full-width row with the same accent border. */
+  figure[data-embed],
+  .app-prose figure[data-embed] {
+    @apply border-border mx-auto my-6 flex w-full flex-col items-stretch overflow-hidden rounded-md border;
+  }
+
+  /* Hide empty paragraphs. remarkEmbeds sometimes leaves a `<p></p>` next
+     to a figure when a markdown link is the lone child of a paragraph
+     (the figure gets spliced out of the paragraph and rendered at root
+     level). Browsers collapse the empty paragraph visually but it adds an
+     unwanted margin from the typography defaults — drop it. */
+  .app-prose p:empty {
+    display: none;
+  }
+
+  figure[data-embed] > iframe,
+  figure[data-embed] > video {
+    @apply block aspect-video w-full border-0;
+  }
+  /* Audio players don't need a 16:9 box. */
+  figure[data-embed="audio"] > audio {
+    @apply block w-full;
+  }
+
+  /* Some providers (Spotify / SoundCloud / Twitch) ship with odd intrinsic
+     heights — force a sensible min-height so the figure doesn't collapse
+     before the iframe finishes loading. Using arbitrary values (h-[152px])
+     instead of namespaced Tailwind sizes (h-152) because the scale tops out
+     at h-96 in v4. */
+  figure[data-embed="spotify"] > iframe {
+    @apply h-[152px];
+  }
+  figure[data-embed="soundcloud"] > iframe {
+    @apply h-[166px];
+  }
+  figure[data-embed="twitch"] > iframe {
+    @apply h-[500px];
+  }
+
+  figure[data-embed] figcaption,
+  .app-prose figure[data-embed] figcaption {
+    @apply text-muted-foreground bg-muted/30 w-full px-3 py-2 text-center text-sm;
+  }
+  /* Native media controls do not respect the OS colour scheme in some
+     browsers when the iframe is wrapped in `border` — counter that. */
+  figure[data-embed="video"],
+  figure[data-embed="audio"] {
+    @apply bg-background;
+  }
+}
+
+/* ===== Code Blocks & Syntax Highlighting ===== */
+.astro-code {
+  @apply outline-border flex border bg-(--shiki-light-bg) text-(--shiki-light) [&_span]:text-(--shiki-light);
+}
+html[data-theme="dark"] .astro-code {
+  @apply bg-(--shiki-dark-bg) text-(--shiki-dark) [&_span]:text-(--shiki-dark);
+}
+
+/* Styles for Shiki transformers */
+/* https://shiki.style/packages/transformers */
+.astro-code {
+  .line.diff.add {
+    @apply relative inline-block w-full bg-green-400/20 before:absolute before:-left-3 before:text-green-500 before:content-['+'];
+  }
+  .line.diff.remove {
+    @apply relative inline-block w-full bg-red-500/20 before:absolute before:-left-3 before:text-red-500 before:content-['-'];
+  }
+  .line.highlighted {
+    @apply inline-block w-full bg-slate-400/20;
+  }
+  .highlighted-word {
+    @apply border-border rounded-sm border px-0.5 py-px;
+  }
+}

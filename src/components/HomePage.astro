@@ -1,0 +1,185 @@
+---
+/**
+ * Shared `HomePage` body — used by BOTH:
+ *   - `src/pages/index.astro`           (default locale, unprefixed URL)
+ *   - `src/pages/[locale]/index.astro`  (non-default locales, prefixed URL)
+ *
+ * Extracted from the duplicate route pair during the route-dedup pass
+ * (see A1 in issues.md). The two route files now exist only as thin
+ * `getStaticPaths` wrappers around this component — they pass `locale`
+ * and `posts` (already filtered to that locale) and otherwise inherit
+ * the shared visual structure.
+ *
+ * Why not collapse the two routes into one
+ * -----------------------------------------
+ * Astro's `prefixDefaultLocale: false` (see `astro.config.ts`) means
+ * the default locale lives at `/` and other locales at `/<locale>/`.
+ * A single `[locale?]/index.astro` with `getStaticPaths` returning
+ * `[undefined, "ru", "tr"]` would technically work, but it
+ * collides with the static `/index.html` Astro emits at the root and
+ * produces brittle URL precedence rules. Two thin route files is the
+ * idiomatic Astro pattern for this case.
+ */
+import { getRelativeLocaleUrl } from "astro:i18n";
+import IconRss from "@/assets/icons/IconRss.svg";
+import IconArrowRight from "@/assets/icons/IconArrowRight.svg";
+import Socials from "@/components/Socials.astro";
+import Card from "@/components/Card.astro";
+import LinkButton from "@/components/LinkButton.astro";
+import ExternalLink from "@/components/ExternalLink.astro";
+import { getSortedPosts } from "@/utils/getSortedPosts";
+import { useTranslations } from "@/i18n";
+import config from "@/config";
+import type { CollectionEntry } from "astro:content";
+
+type Post = CollectionEntry<"posts">;
+
+interface Props {
+  /** Active page locale (drives translations, RSS link, relative URLs). */
+  locale: string;
+  /** Posts already filtered to this locale, in the order the routes want. */
+  posts: Post[];
+}
+
+const { locale, posts } = Astro.props;
+const { socials, posts: postsConfig } = config;
+const t = useTranslations(locale);
+const sortedPosts = getSortedPosts(posts);
+const featuredPosts = sortedPosts.filter(({ data }) => data.featured);
+const recentPosts = sortedPosts.filter(({ data }) => !data.featured);
+const homePath = getRelativeLocaleUrl(locale, "");
+// T2-5 (issues.md): compose the RSS link from `homePath` rather
+// than asking astro:i18n to resolve the string `"rss.xml"` as a
+// route name. The resolver's heuristic matched the leading file
+// extension against the on-disk filename (`src/pages/rss.xml.ts`)
+// and silently emitted `https://ru/rss.xml` for non-default locales
+// (with the bare locale as the protocol hostname) — a path
+// dependency that would have broken on any rename.
+//
+// `homePath` is e.g. `/`, `/ru/`, `/tr/` — already a canonical
+// directory URL. The leading-AND-trailing slash strip mirrors
+// `Layout.astro`'s `activeLocaleRoot` derivation: Astro 7's
+// `getRelativeLocaleUrl("ru", "")` can return `//ru/` (a
+// double-leading-slash shape that browsers parse as a
+// protocol-relative URL to host `ru`); only stripping the trailing
+// `/` would yield `//ru` and produce `//ru/rss.xml`, which
+// browsers fetch from host `ru`. Strip both ends to get a clean
+// `ru` segment before re-prefixing with `/`.
+const localePrefix = homePath.replace(/^\/+/, "").replace(/\/+$/, "");
+const rssHref = localePrefix === "" ? "/rss.xml" : `/${localePrefix}/rss.xml`;
+---
+
+<main
+  id="main-content"
+  tabindex="-1"
+  data-layout="index"
+  data-home-path={homePath}
+  class="app-layout"
+>
+  <section id="hero" class="border-border border-b pt-8 pb-6">
+    <h1 class="my-4 inline-block text-4xl font-bold sm:my-8 sm:text-5xl">
+      {t.home.greeting}
+    </h1>
+    <ExternalLink
+      href={rssHref}
+      class="inline-block"
+      aria-label={t.home.rssFeed}
+      title={t.home.rssFeed}
+    >
+      <IconRss
+        aria-hidden="true"
+        width={20}
+        height={20}
+        class="stroke-accent scale-125 stroke-3 rtl:-rotate-90"
+      />
+      <span class="sr-only">{t.home.rssFeed}</span>
+    </ExternalLink>
+    <p>{t.home.heroIntro}</p>
+    <p class="mt-2">
+      {t.home.heroCtaLead}
+      <ExternalLink
+        class="hover:text-accent inline-flex items-center gap-1 underline decoration-dashed underline-offset-4"
+        href="https://github.com/msoltanov/astro-paper-plus#readme"
+      >
+        {t.home.readme}
+      </ExternalLink>
+      {t.home.heroCtaTail}
+    </p>
+    {
+      socials.length > 0 && (
+        <div class="mt-4 flex max-sm:flex-col sm:items-center">
+          {" "}
+          <div class="me-2 mb-1 whitespace-nowrap sm:mb-0">
+            {" "}
+            {t.home.socialLinks}:{" "}
+          </div>{" "}
+          <Socials />{" "}
+        </div>
+      )
+    }
+  </section>
+  {
+    featuredPosts.length > 0 && (
+      <section
+        id="featured"
+        class:list={[
+          "pt-12 pb-6",
+          { "border-border border-b": recentPosts.length > 0 },
+        ]}
+      >
+        {" "}
+        <h2 class="text-2xl font-semibold tracking-wide">
+          {" "}
+          {t.home.featured}{" "}
+        </h2>{" "}
+        <ul>
+          {" "}
+          {featuredPosts.map(data => (
+            <Card variant="h3" {...data} />
+          ))}{" "}
+        </ul>{" "}
+      </section>
+    )
+  }
+  {
+    recentPosts.length > 0 && (
+      <section id="recent-posts" class="pt-12 pb-6">
+        {" "}
+        <h2 class="text-2xl font-semibold tracking-wide">
+          {" "}
+          {t.home.recentPosts}{" "}
+        </h2>{" "}
+        <ul>
+          {" "}
+          {recentPosts.slice(0, postsConfig.perIndex).map(data => (
+            <Card variant="h3" {...data} />
+          ))}{" "}
+        </ul>{" "}
+      </section>
+    )
+  }
+  <div class="my-8 text-center">
+    <LinkButton href={getRelativeLocaleUrl(locale, "posts")}>
+      {t.home.allPosts}
+      <IconArrowRight aria-hidden="true" class="inline-block rtl:-rotate-180" />
+    </LinkButton>
+  </div>
+</main>
+<script>
+  import { safeSession } from "@/utils/safeStorage";
+  // P2-44: route base-URL handling through the canonical helper
+  // (`withBase`) instead of inlining `import.meta.env.BASE_URL` per
+  // component. Keeps the path-prefix contract in one place — future
+  // custom-base forks don't have to audit every component to find
+  // the bare `BASE_URL` access.
+  import { getAssetPath } from "@/utils/withBase";
+
+  document.addEventListener("astro:page-load", () => {
+    const indexLayout = (document.querySelector("#main-content") as HTMLElement)
+      ?.dataset;
+    const baseRoot = getAssetPath("");
+    if (indexLayout?.layout) {
+      safeSession.set("backUrl", indexLayout.homePath ?? baseRoot);
+    }
+  });
+</script>

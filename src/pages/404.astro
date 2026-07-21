@@ -1,0 +1,17 @@
+---
+import NotFoundBody from "@/components/NotFoundBody.astro";
+import { isSupportedLocale, DEFAULT_LOCALE } from "@/i18n/locales";
+
+// The root 404 catches every URL — including locale-prefixed ones that
+// no `[locale]/...` route matched. Astro's `currentLocale` is unreliable
+// for 404s because the route doesn't belong to a locale-prefixed route,
+// so we parse the URL prefix ourselves. The shared body lives in
+// `NotFoundBody.astro` — see that file's header comment.
+const pathSegments = Astro.url.pathname.split("/").filter(Boolean);
+const detectedLocale = isSupportedLocale(pathSegments[0] ?? "")
+  ? pathSegments[0]!
+  : DEFAULT_LOCALE;
+const locale = detectedLocale;
+---
+
+<NotFoundBody locale={locale} />

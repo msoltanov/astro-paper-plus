@@ -1,0 +1,38 @@
+---
+/**
+ * `GalleriesListBody` — shared body for the per-locale galleries index.
+ *
+ * Used by BOTH:
+ *   - `src/pages/galleries/index.astro`           (default locale, unprefixed URL)
+ *   - `src/pages/[locale]/galleries/index.astro`  (non-default locales, prefixed URL)
+ *
+ * The two route files exist only as thin `getStaticPaths` wrappers
+ * around this component — they pass the locale + the filtered gallery
+ * slice into it. Mirrors the `TagListPageBody.astro` /
+ * `ProjectsListBody.astro` route-dedup pattern (see C3 in issues.md).
+ */
+import type { CollectionEntry } from "astro:content";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import Main from "@/components/Main.astro";
+import GalleryCard from "@/components/GalleryCard.astro";
+import { useTranslations } from "@/i18n";
+
+interface Props {
+  locale: string;
+  galleries: CollectionEntry<"galleries">[];
+}
+
+const { locale, galleries } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<Breadcrumb />
+<Main pageTitle={t.pages.galleriesTitle} pageDesc={t.pages.galleriesDesc}>
+  {
+    galleries.length === 0 ? (
+      <p class="text-muted-foreground italic">{t.pages.galleriesEmpty}</p>
+    ) : (
+      <GalleryCard {locale} {galleries} priorityFirst={true} />
+    )
+  }
+</Main>

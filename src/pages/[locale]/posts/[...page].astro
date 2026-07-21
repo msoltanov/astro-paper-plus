@@ -1,0 +1,69 @@
+---
+import type { GetStaticPaths } from "astro";
+import { type CollectionEntry, getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import PostsIndexBody from "@/components/PostsIndexBody.astro";
+import { getSortedPosts } from "@/utils/getSortedPosts";
+import { groupNonDefaultLocale } from "@/utils/groupNonDefaultLocale";
+import { useTranslations } from "@/i18n";
+import { localeParam } from "@/i18n/locales";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+import config from "@/config";
+
+type Post = CollectionEntry<"posts">;
+// M9 (issues.md): use `flatMap` over the byLocale entries instead of
+// mutating a `paths[]` accumulator. `paginate<T>` preserves the
+// generic through inference, so the return shape stays
+// `{ params: { locale: string }; props: { page: Page<Post> } }[]`
+// without an explicit annotation — Astro sees a correctly-typed
+// `Astro.props.page: Page<Post>` (the leak M6 surfaced and fixed).
+
+export const getStaticPaths = (async ({ paginate }) => {
+  // Single load + partition — see `src/utils/groupNonDefaultLocale.ts`.
+  const byLocale = await groupNonDefaultLocale<Post>(() =>
+    getCollection("posts")
+  );
+  // `paginated.flat()` keeps one O(n) pass instead of push-into-then-
+  // collect — matches the surrounding single-load contract.
+  return Array.from(byLocale).flatMap(([locale, posts]) =>
+    paginate(getSortedPosts(posts), {
+      params: { locale },
+      pageSize: config.posts.perPage,
+    })
+  );
+}) satisfies GetStaticPaths;
+
+const { page } = Astro.props;
+const locale = localeParam(Astro.params.locale);
+const t = useTranslations(locale);
+// Page 1 (`/<locale>/posts/`) matches the canonical hreflang root, so
+// we emit the full cluster there. Page 2+ has a page-specific
+// canonical (`/<locale>/posts/N/`); pointing its hreflang at the
+// page-1 root would create a cluster whose canonical disagrees with
+// the page's own canonical URL, which search engines treat as an
+// inconsistent signal and frequently ignore. Suppress `hrefByLocale`
+// on page 2+ so the head carries no hreflang at all (canonical stands
+// alone).
+const hrefByLocale =
+  page.currentPage === 1
+    ? hrefByLocaleForStaticRoute(
+        "posts",
+        Astro.site?.origin ?? new URL(Astro.url).origin,
+        locale
+      )
+    : undefined;
+// H1 (issues.md): per-locale pagination prev/next — same Google
+// consolidation story as the default-locale route. Page 1 of `ru`
+// (`/ru/posts/`) emits no prev; the last page emits no next.
+const prevHref = page.url.prev;
+const nextHref = page.url.next;
+---
+
+<Layout
+  title={`${t.pages.postsTitle} | ${config.site.title}`}
+  hrefByLocale={hrefByLocale}
+  {prevHref}
+  {nextHref}
+>
+  <PostsIndexBody locale={locale} page={page} />
+</Layout>

@@ -1,0 +1,150 @@
+---
+/**
+ * `GalleryDetailBody` — shared body for the per-locale gallery detail page.
+ *
+ * Used by BOTH:
+ *   - `src/pages/galleries/[...slug].astro`           (default locale)
+ *   - `src/pages/[locale]/galleries/[...slug].astro`  (non-default locales)
+ *
+ * The two route files exist only as thin `getStaticPaths` wrappers
+ * around this component — they pass the resolved `CollectionEntry` and
+ * the rendered MDX content via the default slot. Mirrors the
+ * `ProjectDetailBody.astro` / `PostDetailBody.astro` route-dedup
+ * pattern (see C3 in issues.md).
+ *
+ * The `back-to-list` paragraph, the photo counter, and the lightbox
+ * "X of Y" template are computed from the supplied `locale` so the
+ * body is locale-agnostic.
+ */
+import type { CollectionEntry } from "astro:content";
+import { Image } from "astro:assets";
+import { getRelativeLocaleUrl } from "astro:i18n";
+import Datetime from "@/components/Datetime.astro";
+import { plural, tplStr, useTranslations } from "@/i18n";
+import config from "@/config";
+
+interface Props {
+  locale: string;
+  gallery: CollectionEntry<"galleries">;
+}
+
+const { locale, gallery } = Astro.props;
+const t = useTranslations(locale);
+const { title, description, pubDatetime, modDatetime, timezone, images } =
+  gallery.data;
+const ofLabelTpl = t.gallery.ofLabel;
+---
+
+<!-- P3-9: a single-link `<nav aria-label="Breadcrumb">` would create a
+     redundant landmark. Render as a plain `<p>` so the navigation hint
+     is still announced textually but doesn't pollute the landmark map
+     for screen-reader / "Skip to landmark" power-users. -->
+<p class="text-muted-foreground mb-2 text-sm">
+  <a
+    href={getRelativeLocaleUrl(locale, "galleries")}
+    class="hover:text-foreground"
+  >
+    ← {t.gallery.backToList}
+  </a>
+</p>
+
+<main
+  id="main-content"
+  tabindex="-1"
+  class:list={["app-layout", { "mt-8": !config.features.showBackButton }]}
+>
+  <h1 class="text-accent inline-block text-2xl font-bold sm:text-3xl">
+    {title}
+  </h1>
+
+  <div
+    class="text-muted-foreground my-2 flex flex-wrap items-center gap-2 text-sm"
+  >
+    <Datetime {pubDatetime} {modDatetime} {timezone} size="lg" />
+    <span class="bg-muted rounded px-2 py-0.5 text-xs">
+      {plural(locale, images.length, t.gallery.photoCount)}
+    </span>
+  </div>
+
+  <p class="my-4 text-lg italic">{description}</p>
+
+  <article
+    class:list={[
+      "mt-6 w-full",
+      "app-prose max-w-app",
+      "prose-pre:bg-(--shiki-light-bg) dark:prose-pre:bg-(--shiki-dark-bg)",
+    ]}
+  >
+    <slot />
+  </article>
+
+  <div
+    id="pswp-gallery"
+    class="pswp-gallery not-prose mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+    aria-label={title}
+  >
+    {
+      images.map((item, idx) => {
+        // `image()` resolves to ImageMetadata with .src, .width, .height.
+        // The <a href> links to the full-resolution source for PhotoSwipe,
+        // while the <Image> thumbnail generates a responsive srcset.
+        const asset = item.src;
+        const w = item.width ?? asset.width;
+        const h = item.height ?? asset.height;
+        const src = typeof asset === "string" ? asset : asset.src;
+        return (
+          // M31 (issues.md): the previous `<ExternalLink>` wrapper set
+          // `target` to a new-tab string. With PhotoSwipe blocked (JS off,
+          // CSP disallows the bundle, etc.) clicking a thumbnail opened the
+          // full image in a new tab — a broken back-navigation surface
+          // for the no-JS path. `<ExternalLink>` is correct for *off-site*
+          // destinations; a same-site gallery image should land in the
+          // same tab so the user can hit Back. PhotoSwipe listens via
+          // `delegate: "a[data-pswp-width]"` and intercepts the click
+          // when JS is available, so this also leaves the JS-on path
+          // unchanged.
+          <a
+            href={src}
+            data-pswp-width={w}
+            data-pswp-height={h}
+            data-cropped="true"
+            aria-label={tplStr(ofLabelTpl, {
+              index: idx + 1,
+              total: images.length,
+            })}
+            class="bg-muted group focus-visible:outline-accent relative block aspect-square overflow-hidden rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            {typeof asset !== "string" ? (
+              <Image
+                src={asset}
+                widths={[400, 800]}
+                sizes="400px"
+                alt={item.alt}
+                loading={idx === 0 ? "eager" : "lazy"}
+                decoding="async"
+                fetchpriority={idx === 0 ? "high" : "auto"}
+                class="h-full w-full object-cover transition-transform group-hover:scale-[1.03]"
+              />
+            ) : (
+              <img
+                src={src}
+                alt={item.alt}
+                width={400}
+                height={400}
+                loading={idx === 0 ? "eager" : "lazy"}
+                decoding="async"
+                fetchpriority={idx === 0 ? "high" : undefined}
+                class="h-full w-full object-cover transition-transform group-hover:scale-[1.03]"
+              />
+            )}
+            {item.caption && (
+              <span class="absolute right-0 bottom-0 left-0 bg-black/60 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                {item.caption}
+              </span>
+            )}
+          </a>
+        );
+      })
+    }
+  </div>
+</main>

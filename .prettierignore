@@ -1,0 +1,26 @@
+# Ignore everything
+/*
+
+# Except these files & folders
+!/src
+!/public
+!/.github
+!tsconfig.json
+!astro.config.ts
+!package.json
+!.prettierrc
+!eslint.config.js
+!README.md
+!/.vscode
+
+# Ignore MDX files
+*.mdx
+
+# Lockfile and generated artefacts (issues.md #21).
+# `pnpm format` previously rewrote `pnpm-lock.yaml` on every run,
+# which is a multi-thousand-line noise diff with no semantic value.
+pnpm-lock.yaml
+dist
+coverage
+.astro
+public/pagefind

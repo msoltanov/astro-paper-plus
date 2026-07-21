@@ -1,0 +1,47 @@
+---
+import { getRelativeLocaleUrl } from "astro:i18n";
+import IconHash from "@/assets/icons/IconHash.svg";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+type Props = {
+  tag: string;
+  tagName: string;
+  size?: "sm" | "lg";
+  /**
+   * Optional unique token scoped to the document the tag is rendered
+   * in. View Transitions require `transition:name` to be unique
+   * within a document — two tags with the same `tag` slug on the
+   * same page (e.g. a post with `tags: ["foo", "foo"]`) would
+   * otherwise collide and the morph silently drops. Pass the post
+   * id from the detail page; we hash it into the transition name.
+   */
+  scope?: string;
+};
+const { tag, tagName, size = "lg", scope } = Astro.props;
+const locale = Astro.currentLocale ?? DEFAULT_LOCALE;
+const transitionName = scope ? `tag-${tag}-${scope}` : `tag-${tag}`;
+---
+
+<li>
+  <a
+    href={getRelativeLocaleUrl(locale, `tags/${tag}/`)}
+    transition:name={transitionName}
+    class:list={[
+      "flex items-center gap-0.5",
+      "border-foreground border-b-2 border-dashed",
+      "hover:border-accent hover:text-accent hover:-mt-0.5",
+      "focus-visible:text-accent focus-visible:border-none",
+      { "text-sm": size === "sm" },
+      { "text-lg": size === "lg" },
+    ]}
+  >
+    <IconHash
+      aria-hidden="true"
+      class:list={[
+        "opacity-80",
+        { "size-5": size === "lg" },
+        { "size-4": size === "sm" },
+      ]}
+    />
+    {tagName}
+  </a>
+</li>

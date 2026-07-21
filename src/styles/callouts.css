@@ -1,0 +1,12 @@
+@import "rehype-callouts/theme/obsidian";
+
+html[data-theme="dark"] .callout {
+  mix-blend-mode: lighten;
+  background-color: rgb(
+    from var(--rc-color-dark, var(--rc-color-default)) r g b / 0.1
+  );
+}
+
+html[data-theme="dark"] .callout-title {
+  color: var(--rc-color-dark, var(--rc-color-default));
+}

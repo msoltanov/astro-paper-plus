@@ -1,0 +1,87 @@
+---
+import config from "@/config";
+import IconCalendar from "@/assets/icons/IconCalendar.svg";
+import { useTranslations } from "@/i18n";
+import { formatDate } from "@/i18n/format";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import { parseDateInTz } from "@/utils/parseDateInTz";
+
+type Props = {
+  class?: string;
+  size?: "sm" | "lg";
+  pubDatetime: string | Date;
+  timezone?: string;
+  modDatetime?: string | Date | null;
+  /**
+   * Which `config.site.dateFormat` key to use.
+   *
+   * - `"post"` — full date with day, month, year (default; used on
+   *   post detail, listing pages, gallery detail).
+   * - `"project"` — compact year + month only (used on project cards /
+   *   project detail pages).
+   */
+  variant?: "post" | "project";
+};
+const {
+  pubDatetime,
+  modDatetime,
+  size = "sm",
+  class: className = "",
+  timezone: postTimezone,
+  variant = "post",
+} = Astro.props;
+
+// Astro.currentLocale may be unset at this layer; fall back to default.
+const locale = Astro.currentLocale ?? DEFAULT_LOCALE;
+const t = useTranslations(locale);
+
+// Normalize string-or-Date into an absolute Date first so that the
+// "is this modified?" comparison and the display formatting below
+// operate on the same absolute moment regardless of build-machine TZ.
+// `parseDateInTz` honors the post's per-post `timezone` (or the site
+// default) for strings without an explicit offset.
+const pubDate = parseDateInTz(pubDatetime, postTimezone);
+const modDate =
+  modDatetime != null ? parseDateInTz(modDatetime, postTimezone) : null;
+const isModified = modDate != null && modDate > pubDate;
+const displayDate = isModified ? modDate : pubDate;
+
+// Format via `Intl.DateTimeFormat` — locale-aware CLDR data ships in
+// Node and every modern browser for all supported locales
+// (en/ru/tr). No dayjs plugin loading, no global locale mutation.
+// `config.site.dateFormat.post`/`project` is always populated —
+// `src/config.ts` applies a default when the user doesn't override it.
+// We pass `postTimezone` so the rendered day matches the author's
+// declared timezone, not the build server's local zone.
+const formatOptions =
+  variant === "project"
+    ? config.site.dateFormat.project
+    : config.site.dateFormat.post;
+const formatted = formatDate(displayDate, locale, formatOptions, postTimezone);
+---
+
+<div
+  class:list={["text-muted-foreground flex items-center gap-x-2", className]}
+>
+  <IconCalendar
+    aria-hidden="true"
+    class:list={[
+      "inline-block size-6 min-w-5.5",
+      { "scale-90": size === "sm" },
+    ]}
+  />
+  {
+    isModified && (
+      <span class:list={["text-sm", { "sm:text-base": size === "lg" }]}>
+        {" "}
+        {t.post.updatedAt}:{" "}
+      </span>
+    )
+  }
+  <time
+    class:list={["text-sm", { "sm:text-base": size === "lg" }]}
+    datetime={displayDate.toISOString()}
+  >
+    {formatted}
+  </time>
+</div>

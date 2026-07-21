@@ -1,0 +1,435 @@
+---
+import { Font } from "astro:assets";
+import { ClientRouter } from "astro:transitions";
+import { getRelativeLocaleUrl } from "astro:i18n";
+import { resolveDefaultOgImagePath } from "@/utils/resolveDefaultOgImagePath";
+import { getAssetPath } from "@/utils/withBase";
+import { safeJsonLd } from "@/utils/safeJsonLd";
+import { themeColorScriptObject } from "@/utils/themeColorTokens";
+import { foucScriptBody } from "@/scripts/fouc";
+import config from "@/config";
+import { LOCALES, getLocaleDir, DEFAULT_LOCALE, bcp47 } from "@/i18n/locales";
+import { useTranslations } from "@/i18n";
+import Header from "@/components/Header.astro";
+import Footer from "@/components/Footer.astro";
+import "@/styles/global.css";
+
+type Props = {
+  title?: string;
+  description?: string;
+  ogImage?: string;
+  canonicalURL?: string;
+  /**
+   * Locales this page exists in. Drives the `og:locale:alternate` set
+   * — only locales where the *current* page has a sibling are emitted,
+   * so we don't over-promise translations that don't exist. Lists,
+   * home, about, search pass `LOCALES`; post detail routes pass the
+   * sibling-locale set for the current slug.
+   */
+  availableLocales?: readonly string[];
+  /**
+   * Per-locale sibling URLs. Used to emit `<link rel="alternate"
+   * hreflang="...">` annotations in the head, and to feed the locale
+   * switcher dropdown so each option points at the *actual* rendered
+   * sibling URL (which may differ from the file-path-derived slug when
+   * a frontmatter `slug:` override is in play). Keys must be a subset of
+   * `availableLocales`; missing locales are treated as untranslated.
+   */
+  hrefByLocale?: Readonly<Record<string, string>>;
+  /**
+   * Emit `<meta name="robots" content="noindex">` for pages that
+   * shouldn't appear in search results (the in-site search page,
+   * the 404 page, internal utility routes, etc.).
+   */
+  noindex?: boolean;
+  /**
+   * Open Graph type. Defaults to `"website"`; post detail pages
+   * pass `"article"` so article-specific tags like
+   * `article:published_time` are properly classified.
+   */
+  ogType?: "website" | "article";
+  /**
+   * Alt text for the OG / Twitter card image. Required when the
+   * `ogImage` is a dynamic card carrying rendered text (e.g. the
+   * post title rendered onto the card) — the page description is
+   * prose, not a description of the image, so reusing it for the
+   * alt text produces a poor screen-reader announcement. Post
+   * detail routes pass `ogImageAlt={title}` for exactly that
+   * reason.
+   *
+   * Pages without a text-overlay card (home, about, projects,
+   * galleries) fall through to `description` for backwards-
+   * compatibility with the original AstroPaper theme, even though
+   * `description` describes the page prose rather than the image.
+   * That trade-off is acceptable because the OG image for those
+   * pages is a non-rendered site screenshot or design asset where
+   * the page description doubles as a useful screen-reader hint
+   * about the destination. Pass an explicit `ogImageAlt` for any
+   * future page whose OG image carries rendered text that diverges
+   * from the page prose.
+   */
+  ogImageAlt?: string;
+  /**
+   * H1 (issues.md): pagination metadata. Pass `prevHref` / `nextHref`
+   * to emit `<link rel="prev">` / `<link rel="next">` in the head
+   * so Google can consolidate `/posts/`, `/posts/2/`, `/posts/3/`
+   * into a single cluster rather than indexing each page as its
+   * own soft-duplicate destination. Omit a value (or pass
+   * `undefined`) for the boundary pages — page 1 has no prev, the
+   * last page has no next.
+   */
+  prevHref?: string;
+  nextHref?: string;
+};
+
+const { site } = config;
+
+const {
+  title = site.title,
+  description = site.description,
+  ogImage = resolveDefaultOgImagePath(config),
+  // P1-14: fall back to `Astro.url` when `Astro.site` is undefined
+  // (localhost-only / preview build). The previous literal crashed
+  // with `TypeError: Invalid URL` on those setups; the same fallback
+  // is already applied in `socialImageURL` (line 64) and
+  // `searchUrl` (line 122) below.
+  canonicalURL = new URL(Astro.url.pathname, Astro.site ?? Astro.url).href,
+  availableLocales = LOCALES,
+  hrefByLocale,
+  noindex = false,
+  ogType = "website",
+  ogImageAlt = title,
+  prevHref,
+  nextHref,
+} = Astro.props;
+
+const socialImageURL = new URL(ogImage, Astro.site ?? Astro.url);
+const websiteOrigin = new URL(config.site.url).origin;
+const activeLocale = Astro.currentLocale ?? DEFAULT_LOCALE;
+// T2-5 (issues.md): don't ask Astro's `getRelativeLocaleUrl` to
+// interpret the string `"rss.xml"` as a route name (the resolver
+// only matches by the file-extension heuristic; a rename of
+// `src/pages/rss.xml.ts` to `src/pages/rss.ts` would silently
+// keep emitting the old URL). Instead, build the URL by
+// composing the locale root with an explicit suffix.
+//
+// `activeLocaleRoot` is the bare prefix for the active locale
+// stripped of BOTH leading and trailing slashes:
+//   - English (default locale, no prefix): ""
+//   - Russian / Turkish: "ru" / "tr"
+//
+// Astro 7's `getRelativeLocaleUrl("ru", "")` returns `//ru/` (a
+// double-leading-slash shape) in some build configurations; the
+// bidirectional slash trim normalises that to `"ru"` so downstream
+// concatenation can't accidentally produce `///ru`.
+const activeLocaleRoot = getRelativeLocaleUrl(activeLocale, "")
+  .replace(/^\/+/, "")
+  .replace(/\/+$/, "");
+const rssHref = activeLocaleRoot ? `/${activeLocaleRoot}/rss.xml` : "/rss.xml";
+// #28 SEO — feed-reader autodiscovery links advertise the
+// localised channel title (the same string the RSS feed's own
+// `<title>` carries), not the English site title. Without this,
+// a Russian-language reader subscribing via the autodiscovery
+// link sees "AstroPaper+" in their reader UI, while the feed's
+// own copy is in Russian — mismatched metadata for what should
+// be a localised subscription.
+const rssChannelTitle = useTranslations(activeLocale).pages.feedTitle;
+// `getLocaleDir` falls back to "ltr" for unknown / future locales
+// that haven't been added to `LOCALE_DIR` yet. Per-locale entries
+// win, so an RTL locale added to `LOCALE_DIR` (e.g. "ar") still
+// flips the document direction without changing the user-facing
+// config.
+const docDir = getLocaleDir(activeLocale);
+/**
+ * og:locale + alternate-locale list. Emits the active page locale under
+ * the standard `og:locale` tag, and the OTHER locales the page exists
+ * in (per the `availableLocales` prop) under `og:locale:alternate`.
+ */
+const alternateLocales = availableLocales.filter(l => l !== activeLocale);
+/**
+ * Per-locale absolute URLs for `<link rel="alternate">` annotations.
+ *
+ * When `hrefByLocale` is provided we emit the **complete** hreflang
+ * cluster for the page:
+ *
+ *   - all supported locales (en, ru, tr) — including the SELF
+ *     locale, so search engines see a complete cluster rather than
+ *     a partial set of "other" alternates
+ *   - `x-default` pointing at the default-locale URL (per Google's
+ *     hreflang spec)
+ *
+ * The `alternateLocales` set above is still useful for `og:locale`
+ * metadata, but for the actual `<link rel="alternate" hreflang="...">`
+ * annotations we walk the whole map.
+ */
+const alternateHrefs: Record<string, string> = {};
+if (hrefByLocale) {
+  for (const [loc, u] of Object.entries(hrefByLocale)) {
+    if (u) alternateHrefs[loc] = new URL(u, websiteOrigin).href;
+  }
+  const def = hrefByLocale[DEFAULT_LOCALE];
+  if (def) alternateHrefs["x-default"] = new URL(def, websiteOrigin).href;
+}
+
+/**
+ * WebSite + SearchAction JSON-LD (E3 structured data enhancement).
+ *
+ * - `WebSite` describes the site as a whole — every page emits the same
+ *   copy because schema.org WebSite is a site-wide type, not per-page.
+ * - `SearchAction` points at the search route and declares the
+ *   `?q={search_term_string}` query parameter. The search page
+ *   (`src/pages/search.astro`, `src/pages/[locale]/search.astro`)
+ *   reads `URLSearchParams.get("q")` on init, so the contract holds.
+ *
+ * Skipped when `site.features.search !== "pagefind"` — a `potentialAction`
+ * for a non-pagefind search backend would be misleading.
+ */
+// T2-5 (issues.md): anchor on `config.site.url` (the project's
+// canonical, locale-independent origin) for every JSON-LD and
+// autodiscovery link. `Astro.site?.origin` returns `https://<locale>/`
+// for non-default-locale pages in Astro 7's `prefixDefaultLocale: false`
+// mode — `<Astro.url>.origin` has the same problem — so the prior
+// fallback chain emitted `https://ru/rss.xml` autodiscovery links
+// with the bare locale as hostname. `config.site.url` is the single
+// source of truth for the deploy origin and is what's emitted into
+// the build's `<meta property="og:url">` and JSON-LD `url` keys.
+const searchHref = activeLocaleRoot
+  ? `/${activeLocaleRoot}/search/`
+  : "/search/";
+const searchUrl = new URL(searchHref, websiteOrigin).href;
+const websiteJsonLd =
+  config.features.search === "pagefind"
+    ? safeJsonLd({
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        name: site.title,
+        url: websiteOrigin,
+        inLanguage: activeLocale.replace("-", "_"),
+        potentialAction: {
+          "@type": "SearchAction",
+          target: {
+            "@type": "EntryPoint",
+            urlTemplate: `${searchUrl}?q={search_term_string}`,
+          },
+          "query-input": "required name=search_term_string",
+        },
+      })
+    : "";
+---
+
+<!doctype html>
+<!--
+  themeColorScriptObject() emits a `{ light: "#…", dark: "#…" }`
+  literal whose values are read at build time from
+  `src/styles/theme.css` `--background` (see
+  `src/utils/themeColorTokens.ts`). Keeping this single source of
+  truth means the FOUC pre-paint script and the rendered CSS can
+  never drift: a future theme change updates `theme.css` and both
+  the styles and the inline script pick it up automatically.
+-->
+<html
+  dir={docDir}
+  lang={Astro.currentLocale ?? DEFAULT_LOCALE}
+  class="overflow-y-scroll scroll-smooth"
+>
+  <head>
+    <script
+      is:inline
+      set:html={`window.__themeColors = ${themeColorScriptObject()};`}
+    />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <link rel="icon" type="image/svg+xml" href={getAssetPath("favicon.svg")} />
+
+    <link rel="canonical" href={canonicalURL} />
+    <meta name="generator" content={Astro.generator} />
+
+    {
+      /*
+      H1 (issues.md): pagination `rel="prev"` / `rel="next"`. Emit
+      only when the route passes a value — page 1 has no prev, the
+      last page has no next, and any non-paginated route omits the
+      prop entirely. Without this, Google sees `/posts/`, `/posts/2/`,
+      `/posts/3/` as soft-duplicates and serialises the cluster
+      incorrectly. The hrefs are absolute (resolved against the
+      current canonical's origin) so crawlers don't have to chase a
+      relative URL through `<base>` resolution.
+    */
+    }
+    {
+      prevHref && (
+        <link
+          rel="prev"
+          href={new URL(prevHref, Astro.site ?? Astro.url).href}
+        />
+      )
+    }
+    {
+      nextHref && (
+        <link
+          rel="next"
+          href={new URL(nextHref, Astro.site ?? Astro.url).href}
+        />
+      )
+    }
+
+    <!-- Font -->
+    <Font
+      cssVariable="--font-google-sans-code"
+      preload={[
+        { subset: "latin", weight: 400, style: "normal" },
+        { subset: "latin", weight: 700, style: "normal" },
+      ]}
+    />
+
+    <!-- Primary meta -->
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="author" content={site.author} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <link rel="sitemap" href={getAssetPath("sitemap-index.xml")} />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content={ogType} />
+    <meta property="og:site_name" content={site.title} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:image" content={socialImageURL} />
+    {
+      /* og:locale + alternate-locale list. Crawlers use this to pick the
+         correct preview language when a URL is shared across locales. We
+         only emit alternates for locales the page actually exists in. */
+    }
+    <meta property="og:locale" content={bcp47(activeLocale)} />
+    {
+      alternateLocales.map(altLocale => (
+        <meta property="og:locale:alternate" content={bcp47(altLocale)} />
+      ))
+    }
+
+    {
+      /* `<link rel="alternate" hreflang="...">` — the standard, search-
+         engine-friendly sibling-URL signal. Each annotation's href is
+         the sibling's actual rendered URL (honoring any slug override),
+         sourced from `hrefByLocale`. The set includes the SELF locale
+         and `x-default` so search engines see a complete hreflang
+         cluster; see the `alternateHrefs` block above for the
+         build-up. Emitted only when the prop is provided (post detail
+         routes and the non-post static pages set it; search / 404 pass
+         undefined and emit no hreflang). */
+      Object.entries(alternateHrefs).map(([loc, href]) => (
+        <link rel="alternate" hreflang={loc} href={href} />
+      ))
+    }
+
+    <!-- Twitter / X -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content={canonicalURL} />
+    <meta property="twitter:title" content={title} />
+    <meta property="twitter:description" content={description} />
+    <meta property="twitter:image" content={socialImageURL} />
+    <meta property="twitter:image:alt" content={ogImageAlt} />
+    <meta property="og:image:alt" content={ogImageAlt} />
+
+    <!-- RSS autodiscovery. T2-5: anchor on `websiteOrigin` (same
+         origin as the WebSite JSON-LD block above) and compose via
+         `new URL(rssHref, websiteOrigin).href`. `rssHref` already
+         carries both the locale prefix AND Astro's configured `base`
+         (via `getRelativeLocaleUrl`), so a `/`-separator string concat
+         would double-prefix to `…/blog/blog/rss.xml` for subdirectory
+         deploys. The URL parser handles the join cleanly. -->
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title={rssChannelTitle}
+      href={new URL(rssHref, websiteOrigin).href}
+    />
+
+    <!-- Filled at runtime by the FOUC script (and kept in sync by theme.ts)
+         to match the current background colour. The empty `content=""` is
+         intentional — the FOUC script sets it pre-paint based on the detected
+         theme, so there's never a flash of the wrong colour. -->
+    <meta name="theme-color" content="" />
+
+    <!-- Extra head content injected by child layouts (e.g. JSON-LD, article meta) -->
+    <slot name="head" />
+
+    {
+      websiteJsonLd && (
+        <script is:inline type="application/ld+json" set:html={websiteJsonLd} />
+      )
+    }
+
+    {
+      site.googleVerification && (
+        <meta
+          name="google-site-verification"
+          content={site.googleVerification}
+        />
+      )
+    }
+
+    <!-- Inline FOUC-prevention script: sets data-theme on <html> before the browser paints.
+         M30 (issues.md): the IIFE body was extracted from this template into
+         `src/scripts/fouc.ts` so a typo in the pre-paint path is unit-testable
+         instead of being hidden inside a 40-line inline `<script>`. The body
+         here is just the rendered output of `foucScriptBody()`. -->
+    <script is:inline set:html={foucScriptBody()} />
+
+    <ClientRouter />
+
+    <!-- Mermaid: dynamically import the client renderer only when at least one `<pre class="mermaid">` placeholder is present on the page. This keeps the mermaid bundle (~700 KB minified) off pages without diagrams while still picking up diagrams that authors add to any content kind. The `astro:page-load` listener ensures it also fires on View Transition navigations, not just the first page load. -->
+    <script>
+      const load = () => {
+        if (document.querySelector("pre.mermaid")) {
+          void import("@/scripts/mermaid").then(m => m.initMermaid());
+        }
+      };
+      load();
+      document.addEventListener("astro:page-load", load);
+    </script>
+  </head>
+
+  <body
+    class="bg-background font-app text-foreground selection:bg-accent/75 selection:text-accent-foreground flex min-h-svh flex-col"
+  >
+    <Header availableLocales={availableLocales} hrefByLocale={hrefByLocale} />
+    <slot />
+    <Footer />
+
+    <script>
+      import "@/scripts/theme";
+      // Focus restoration after Astro view transitions.
+      //
+      // Without this, focus stays on `<body>` after navigation — forcing
+      // keyboard / screen-reader users to re-tab through the entire
+      // header before reaching content. We move focus to the
+      // `<main id="main-content" tabindex="-1">` landmark on every
+      // `astro:page-load`, but only when:
+      //   1. The browser didn't target a hash (let native scroll behaviour
+      //      handle it).
+      //   2. The user hadn't already focused a form control (don't
+      //      steal their place).
+      //
+      // `preventScroll: true` skips the visual scroll-to because the
+      // browser already scrolled to the top of the next page.
+      document.addEventListener("astro:page-load", () => {
+        if (window.location.hash) return;
+        const active = document.activeElement;
+        if (
+          active &&
+          active !== document.body &&
+          active !== document.documentElement
+        ) {
+          return;
+        }
+        const main = document.getElementById("main-content");
+        if (main instanceof HTMLElement) {
+          main.focus({ preventScroll: true });
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,105 @@
+---
+pubDatetime: "2022-09-25T15:20:35Z"
+modDatetime: "2026-05-17T04:57:06.476Z"
+title: Настройка цветовых схем темы AstroPaper+
+featured: false
+draft: false
+tags:
+  - color-schemes
+  - docs
+description: Как включить или отключить светлую и тёмную тему; как настроить цветовые схемы в теме AstroPaper+.
+---
+import ResponsiveTable from '@/components/ResponsiveTable.astro';
+
+Это руководство описывает, как включить или отключить светлую и тёмную тему, а также как настроить цветовую схему для всего сайта. (AstroPaper+ — форк AstroPaper+ от [].)
+
+## Table of contents
+
+## Включение/отключение светлой и тёмной темы
+
+Тема AstroPaper+ по умолчанию включает светлую и тёмную тему. Это поведение по умолчанию можно отключить в `astro-paper.config.ts`:
+
+```ts file="astro-paper.config.ts"
+export default defineAstroPaperConfig({
+  // ...
+  features: {
+    lightAndDarkMode: true, // [!code highlight]
+    // ...
+  },
+});
+
+```
+
+Чтобы отключить `светлую и тёмную тему`, установите `features.lightAndDarkMode` в `false`. Когда режим отключён, сайт будет использовать только светлую цветовую схему, определённую в `src/styles/theme.css`.
+
+## Настройка цветовых схем
+
+И светлая, и тёмная цветовые схемы темы AstroPaper+ определены в `src/styles/theme.css`.
+
+```css file="src/styles/theme.css"
+/* Значения светлой темы */
+:root,
+[data-theme="light"] {
+  --background: #fdfdfd;
+  --foreground: #282728;
+  --accent: #006cac;
+  --accent-foreground: #ffffff;
+  --muted: #e6e6e6;
+  --muted-foreground: #6b7280;
+  --border: #ece9e9;
+}
+
+/* Значения тёмной темы */
+[data-theme="dark"] {
+  --background: #212737;
+  --foreground: #eaedf3;
+  --accent: #ff6b01;
+  --accent-foreground: #ffffff;
+  --muted: #343f60;
+  --muted-foreground: #afb9ca;
+  --border: #ab4b08;
+}
+
+```
+
+Селекторы `:root` и `[data-theme="light"]` определяют светлую цветовую схему, а `[data-theme="dark"]` — тёмную. Чтобы задать свою цветовую схему, укажите светлые цвета внутри `:root, [data-theme="light"]`, а тёмные — внутри `[data-theme="dark"]`. Вот подробное описание каждого свойства цвета:
+
+<ResponsiveTable variant="minimal" class="max-sm:-mx-4 [&_td]:first-of-type:text-nowrap">
+| Свойство цвета         | Определение и использование                                                       |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| `--background`         | Основной цвет сайта. Обычно — главный фон.                                        |
+| `--foreground`         | Вторичный цвет сайта. Обычно — цвет текста.                                       |
+| `--accent`             | Акцентный цвет. Используется для ссылок, hover-состояний и интерактивных элементов. |
+| `--accent-foreground`  | Цвет переднего плана, отображаемый поверх фонов `--accent`.                       |
+| `--muted`              | Приглушённый фоновый цвет. Используется для карточек, тегов и hover-состояний.     |
+| `--muted-foreground`   | Цвет текста, отображаемый поверх фонов `--muted`.                                 |
+| `--border`             | Цвет границ. Используется для разделителей и визуального отделения.                |
+</ResponsiveTable>
+
+Вот пример изменения светлой цветовой схемы:
+
+```css file="src/styles/theme.css"
+/* ... */
+:root,
+[data-theme="light"] {
+  --background: #f6eee1;
+  --foreground: #012c56;
+  --accent: #e14a39;
+  --accent-foreground: #ffffff;
+  --muted: #efd8b0;
+  --muted-foreground: #6b7280;
+  --border: #dc9891;
+}
+/* ... */
+
+```
+
+> Загляните в набор готовых цветовых схем, которые AstroPaper+ (оригинальная тема) уже подготовила для вас — все они работают как есть в форке AstroPaper+.
+
+
+
+---
+
+> **Originally written by [Sat Naing](https://github.com/satnaing) on
+> [satnaing.dev](https://satnaing.dev/). Translated and adapted for the
+> AstroPaper+ fork by [Mekan Soltanov](https://github.com/msoltanov).**

@@ -1,0 +1,33 @@
+---
+import type { HTMLAttributes } from "astro/types";
+import { useTranslations } from "@/i18n";
+
+type Props = Omit<HTMLAttributes<"a">, "target" | "rel"> & {
+  rel?: string;
+};
+
+const {
+  class: className,
+  rel,
+  "aria-label": ariaLabel,
+  ...attrs
+} = Astro.props;
+const t = useTranslations(Astro.currentLocale);
+const relTokens = new Set((rel ?? "").split(/\s+/).filter(Boolean));
+relTokens.add("noopener");
+relTokens.add("noreferrer");
+const safeRel = [...relTokens].join(" ");
+const announcedLabel = ariaLabel
+  ? `${ariaLabel} (${t.link.opensInNewTab})`
+  : undefined;
+---
+
+<a
+  {...attrs}
+  class:list={[className]}
+  target="_blank"
+  rel={safeRel}
+  aria-label={announcedLabel}
+>
+  <slot /><span class="sr-only"> ({t.link.opensInNewTab})</span>
+</a>

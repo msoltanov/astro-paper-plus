@@ -1,0 +1,78 @@
+name: Feature request
+description: Propose a new feature, an enhancement to an existing one, or a documentation improvement.
+title: "\u2728 [Feature]: "
+labels: ["enhancement", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe **the problem first**, then the proposed solution. Features that
+        solve a concrete problem are much easier to evaluate than "nice to have"
+        additions.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: |
+        What is missing or frustrating in the current fork? Who is affected
+        (just you, your fork's users, contributors)?
+      placeholder: I can't easily share a post by selecting text on mobile.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: A concrete description of what you want to see happen.
+      placeholder: |
+        Add a "Copy link with selection" button below each post that copies
+        the selection (or the post URL as a fallback) to the clipboard.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: |
+        Have you thought of any alternative solutions or workarounds?
+        Listing them helps us understand the trade-offs.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      description: How big is the proposed change?
+      options:
+        - Small (config flag, copy tweak, CSS-only)
+        - Medium (new component or plugin)
+        - Large (new content collection, new i18n locale, refactor)
+        - Documentation-only
+    validations:
+      required: true
+
+  - type: textarea
+    id: i18n
+    attributes:
+      label: i18n impact
+      description: |
+        Does this change introduce a new locale string? If so, all three locales
+        (en / ru / tr) will need updates — see CONTRIBUTING.md.
+      placeholder: |
+        Yes — adds 4 new keys under `post.shareSelection.*`.
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Mockups, related issues, upstream alignment notes, etc.
+    validations:
+      required: false

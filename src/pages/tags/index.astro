@@ -1,0 +1,52 @@
+---
+/**
+ * Default-locale tags index — `src/pages/tags/index.astro`.
+ *
+ * R3 (issues.md): this route was parked in `.legacy-i18n-cleanup/`
+ * and never restored, so every tag page rendered a breadcrumb
+ * intermediate (and JSON-LD `item` URL) pointing at `/tags/` —
+ * which 404'd. Restored here so the breadcrumb on
+ * `/tags/<slug>/` lands on a real listing page, the JSON-LD
+ * `item` resolves, and the `<link rel="alternate" hreflang>` set
+ * emitted on tag pages agrees with an actual root.
+ *
+ * The visible body lives in the shared `TagsIndexBody.astro`
+ * component (mirrors the `TagListPageBody.astro` /
+ * `ArchivesBody.astro` pattern). The route file is intentionally a
+ * thin wrapper — it does NOT render `<Header />` or `<Footer />`
+ * inline, because `Layout.astro` already provides both at the
+ * right scope (with `availableLocales` + `hrefByLocale` props that
+ * an inline `<Header />` would silently drop).
+ *
+ * Post draft / scheduled filtering happens BEFORE
+ * `getUniqueTags()` so the chip list agrees with the per-tag route
+ * (`src/pages/tags/[tag].astro` uses the same `postFilter` to
+ * gate emissions).
+ */
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import TagsIndexBody from "@/components/TagsIndexBody.astro";
+import { getUniqueTags } from "@/utils/getUniqueTags";
+import { postFilter } from "@/utils/postFilter";
+import { postsByLocale } from "@/utils/postsByLocale";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+import { useTranslations } from "@/i18n";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import config from "@/config";
+
+const posts = (
+  await getCollection("posts", postsByLocale(DEFAULT_LOCALE))
+).filter(postFilter);
+const tags = getUniqueTags(posts);
+const locale = DEFAULT_LOCALE;
+const t = useTranslations(locale);
+const hrefByLocale = hrefByLocaleForStaticRoute(
+  "tags",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  locale
+);
+---
+
+<Layout title={`${t.pages.tagsTitle} | ${config.site.title}`} {hrefByLocale}>
+  <TagsIndexBody {locale} {tags} />
+</Layout>

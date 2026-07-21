@@ -1,0 +1,75 @@
+---
+import { getCollection, render } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import ProjectDetailBody from "@/components/ProjectDetailBody.astro";
+import { getProjectSlugSegments } from "@/utils/getProjectPaths";
+import { projectsByLocale } from "@/utils/projectsByLocale";
+import { projectFilter } from "@/utils/projectFilter";
+import { coverImageSrc } from "@/utils/coverImageSrc";
+import {
+  buildContentTranslationGroups,
+  findContentSiblings,
+} from "@/utils/contentSiblings";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import config from "@/config";
+export async function getStaticPaths() {
+  // Default-locale only — non-default locales handled by
+  // src/pages/[locale]/projects/[...slug].astro
+  const projects = await getCollection(
+    "projects",
+    projectsByLocale(DEFAULT_LOCALE)
+  ).then(p => p.filter(projectFilter));
+  // Translation groups span every locale, not just the one this
+  // route is rendering — siblings in `ru`/`tr` are needed to
+  // build the cross-locale hreflang cluster the head emits.
+  // Filter drafts and scheduled projects here too, so a draft never
+  // appears as a translation sibling for a published project
+  // (otherwise the hreflang head annotation would point at a
+  // 404 / filtered URL).
+  const allProjects = await getCollection("projects").then(p =>
+    p.filter(projectFilter)
+  );
+  const translationGroups = buildContentTranslationGroups(
+    "projects",
+    allProjects
+  );
+
+  return projects.map(project => {
+    const siblings = findContentSiblings(
+      "projects",
+      project,
+      translationGroups
+    );
+    return {
+      params: {
+        slug: getProjectSlugSegments(
+          project.id,
+          project.filePath as string | undefined,
+          project.data.slug
+        ),
+      },
+      props: { project, siblings },
+    };
+  });
+}
+const { project, siblings } = Astro.props;
+const { description, coverImage } = project.data;
+const locale = Astro.currentLocale ?? DEFAULT_LOCALE;
+const { Content } = await render(project);
+const ogImageUrl = coverImageSrc(coverImage);
+const ogImage = ogImageUrl
+  ? new URL(ogImageUrl, Astro.url.origin).href
+  : undefined;
+---
+
+<Layout
+  title={`${project.data.title} | ${config.site.title}`}
+  {description}
+  {ogImage}
+  availableLocales={siblings.availableLocales}
+  hrefByLocale={siblings.hrefByLocale}
+>
+  <ProjectDetailBody {locale} {project}>
+    <Content />
+  </ProjectDetailBody>
+</Layout>

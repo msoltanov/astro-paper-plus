@@ -1,0 +1,91 @@
+---
+/**
+ * Locale-prefixed tag listing — `src/pages/[locale]/tags/[tag]/`.
+ *
+ * Issues.md P0-5: companion to `src/pages/tags/[tag].astro` for the
+ * non-default locales (ru, tr). Same shape — `getStaticPaths` returns
+ * one path per (tag-slug, tag-label) tuple; the body is shared via
+ * `TagListPageBody.astro`.
+ */
+import { type CollectionEntry, getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import { postFilter } from "@/utils/postFilter";
+import { postsByLocale } from "@/utils/postsByLocale";
+import { groupNonDefaultLocale } from "@/utils/groupNonDefaultLocale";
+import { hrefByLocaleForTag } from "@/utils/hrefByLocaleForStaticRoute";
+import { buildTagLocaleMap } from "@/utils/tagSiblings";
+import { slugifyStr } from "@/utils/slugify";
+import { localeParam } from "@/i18n/locales";
+import { useTranslations } from "@/i18n";
+import config from "@/config";
+import TagListPageBody from "@/components/TagListPageBody.astro";
+
+type Post = CollectionEntry<"posts">;
+
+export async function getStaticPaths() {
+  // Single load + partition (see groupNonDefaultLocale.ts for why two passes is
+  // never better than one). Filter drafts/scheduled once, then group
+  // posts by locale and emit one tag slug entry per locale.
+  const all = await getCollection("posts");
+  const filtered = all.filter(postFilter);
+  const localesByTag = buildTagLocaleMap(filtered);
+  const byLocale = await groupNonDefaultLocale<Post>(async () => filtered);
+  const paths: Array<{
+    params: { locale: string; tag: string };
+    props: {
+      tagName: string;
+      posts: Post[];
+      availableLocales: readonly string[];
+    };
+  }> = [];
+  for (const [locale, localePosts] of byLocale) {
+    // postsByLocale is the per-locale equivalent of the default-locale
+    // `postsByLocale(DEFAULT_LOCALE)` filter used in tags/[tag].astro;
+    // we keep both call sites consistent on filtering but
+    // `groupNonDefaultLocale` already pre-partitioned, so it's belt-and-braces.
+    const scoped = localePosts.filter(postsByLocale(locale));
+    const bySlug = new Map<string, { tagName: string; posts: Post[] }>();
+    for (const post of scoped) {
+      for (const tag of post.data.tags) {
+        const slug = slugifyStr(tag);
+        const entry = bySlug.get(slug);
+        if (entry) {
+          entry.posts.push(post);
+        } else {
+          bySlug.set(slug, { tagName: tag, posts: [post] });
+        }
+      }
+    }
+    for (const [slug, { tagName, posts: slugPosts }] of bySlug) {
+      paths.push({
+        params: { locale, tag: slug },
+        props: {
+          tagName,
+          posts: slugPosts,
+          availableLocales: localesByTag.get(slug) ?? [locale],
+        },
+      });
+    }
+  }
+  return paths;
+}
+
+const locale = localeParam(Astro.params.locale);
+const { tagName, posts, availableLocales } = Astro.props;
+const t = useTranslations(locale);
+const hrefByLocale = hrefByLocaleForTag(
+  Astro.params.tag ?? "",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  locale,
+  availableLocales
+);
+---
+
+<Layout
+  title={`${t.post.tagLabel}: ${tagName} | ${config.site.title}`}
+  description={`${tagName} — ${t.pages.postsDesc}`}
+  hrefByLocale={hrefByLocale}
+  availableLocales={availableLocales}
+>
+  <TagListPageBody {locale} {tagName} {posts} />
+</Layout>

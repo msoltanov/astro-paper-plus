@@ -1,0 +1,81 @@
+---
+/**
+ * Default-locale tag listing — `src/pages/tags/[tag]/`.
+ *
+ * Issues.md P0-5: previously this route didn't exist, so the `<a>`
+ * tags every post detail page renders pointed at a 404. The pair
+ * `[tag]/index.astro` + (later) `index.astro` builds a working tag
+ * surface under `/tags/<slug>/` URLs for the default locale.
+ *
+ * `getStaticPaths` returns one path per (tag-slug, tag-label) tuple for
+ * posts under the default locale only — non-default locales have their
+ * own route file at `src/pages/[locale]/tags/[tag].astro`. Both routes
+ * render the shared `TagListPageBody.astro` body; see that file's
+ * header comment for the route-dedup rationale.
+ */
+import type { GetStaticPaths } from "astro";
+import { getCollection } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import { postFilter } from "@/utils/postFilter";
+import { postsByLocale } from "@/utils/postsByLocale";
+import { slugifyStr } from "@/utils/slugify";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import { hrefByLocaleForTag } from "@/utils/hrefByLocaleForStaticRoute";
+import { buildTagLocaleMap } from "@/utils/tagSiblings";
+import { useTranslations } from "@/i18n";
+import TagListPageBody from "@/components/TagListPageBody.astro";
+import config from "@/config";
+
+export const getStaticPaths = (async () => {
+  // Default-locale posts only — non-default locales live in the
+  // [locale]/tags/[tag].astro route. Post draft / scheduled filtering
+  // happens here so the URL list never includes hidden posts.
+  const posts = await getCollection(
+    "posts",
+    postsByLocale(DEFAULT_LOCALE)
+  ).then(p => p.filter(postFilter));
+  const allPosts = await getCollection("posts").then(p => p.filter(postFilter));
+  const localesByTag = buildTagLocaleMap(allPosts);
+  // Group posts by their slugified tag (the URL key) so the same tag
+  // label appearing on multiple posts collapses into a single URL.
+  const bySlug = new Map<string, { tagName: string; posts: typeof posts }>();
+  for (const post of posts) {
+    for (const tag of post.data.tags) {
+      const slug = slugifyStr(tag);
+      const entry = bySlug.get(slug);
+      if (entry) {
+        entry.posts.push(post);
+      } else {
+        bySlug.set(slug, { tagName: tag, posts: [post] });
+      }
+    }
+  }
+  return [...bySlug.entries()].map(([slug, { tagName, posts: slugPosts }]) => ({
+    params: { tag: slug },
+    props: {
+      tagName,
+      posts: slugPosts,
+      availableLocales: localesByTag.get(slug) ?? [DEFAULT_LOCALE],
+    },
+  }));
+}) satisfies GetStaticPaths;
+
+const { tagName, posts, availableLocales } = Astro.props;
+const locale = Astro.currentLocale ?? DEFAULT_LOCALE;
+const t = useTranslations(locale);
+const hrefByLocale = hrefByLocaleForTag(
+  Astro.params.tag ?? "",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  locale,
+  availableLocales
+);
+---
+
+<Layout
+  title={`${t.post.tagLabel}: ${tagName} | ${config.site.title}`}
+  description={`${tagName} — ${t.pages.postsDesc}`}
+  hrefByLocale={hrefByLocale}
+  availableLocales={availableLocales}
+>
+  <TagListPageBody {locale} {tagName} {posts} />
+</Layout>

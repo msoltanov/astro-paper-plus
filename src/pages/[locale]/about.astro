@@ -1,0 +1,38 @@
+---
+import { getEntry, render } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import AboutBody from "@/components/AboutBody.astro";
+import { LOCALES, DEFAULT_LOCALE, localeParam } from "@/i18n/locales";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+import config from "@/config";
+export async function getStaticPaths() {
+  return LOCALES.filter(l => l !== DEFAULT_LOCALE).map(locale => ({
+    params: { locale },
+  }));
+}
+const locale = localeParam(Astro.params.locale);
+const about = await getEntry("pages", `${locale}/about`);
+if (!about) {
+  throw new Error(
+    `Missing content entry: \`${locale}/about.md\` (or .mdx) under \`src/content/pages/${locale}/\``
+  );
+}
+const { Content } = await render(about);
+const hrefByLocale = hrefByLocaleForStaticRoute(
+  "about",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  locale
+);
+---
+
+<Layout
+  title={`${about.data.title} | ${config.site.title}`}
+  description={about.data.description}
+  ogImage={about.data.ogImage}
+  canonicalURL={about.data.canonicalURL}
+  hrefByLocale={hrefByLocale}
+>
+  <AboutBody {locale} title={about.data.title}>
+    <Content />
+  </AboutBody>
+</Layout>

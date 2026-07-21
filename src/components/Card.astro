@@ -1,0 +1,56 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { getPostUrl } from "@/utils/getPostPaths";
+import { postDescription } from "@/utils/postDescription";
+import { postTitleTransitionName } from "@/utils/postTitleTransitionName";
+import { DEFAULT_LOCALE } from "@/i18n/locales";
+import Datetime from "./Datetime.astro";
+
+type Props = CollectionEntry<"posts"> & {
+  variant?: "h2" | "h3";
+  /**
+   * Explicit locale override. Defaults to `Astro.currentLocale ??
+   * DEFAULT_LOCALE`. Setting this lets a caller render an EN post
+   * card inside a `/ru/` listing (or any future cross-locale
+   * listing) without relying on the implicit `Astro.currentLocale`
+   * shape — useful for RSS exports, JSON feeds, and any non-Astro
+   * rendering path.
+   */
+  locale?: string;
+};
+
+// `locale` and `variant` are component props, not part of
+// `CollectionEntry`, so we destructure them once at the top and treat
+// the rest as the entry. This keeps the props fully optional and
+// backwards-compatible (callers that didn't pass `variant` / `locale`
+// get the previous behaviour) AND means downstream helpers like
+// `postTitleTransitionName` never see those props as extra keys.
+const props = Astro.props as Props;
+const { variant, locale: localeProp, ...entry } = props;
+const locale = localeProp ?? Astro.currentLocale ?? DEFAULT_LOCALE;
+const Heading: "h2" | "h3" = variant ?? "h2";
+const { id, data, filePath } = entry;
+const { title } = data;
+const { pubDatetime, modDatetime, timezone } = data;
+// `description` falls back to an excerpt up to the `<!-- more -->` marker
+// when frontmatter doesn't supply one. See `src/utils/postDescription.ts`.
+const description = postDescription(entry);
+---
+
+<li class="my-6">
+  <a
+    href={getPostUrl(id, filePath, locale, data.slug)}
+    class:list={[
+      "text-accent inline-block text-lg font-medium",
+      "decoration-dashed underline-offset-4 hover:underline",
+      "focus-visible:no-underline focus-visible:underline-offset-0",
+    ]}
+  >
+    <!-- view-transition-name must be unique within a document. We append the post's collection id so two cards with the same title (e.g. across translations or different locales) never collide on a listing page. The compositing helper is shared with the post detail pages so the title morph stays wired. -->
+    <Heading transition:name={postTitleTransitionName(entry)}>
+      {title}
+    </Heading>
+  </a>
+  <Datetime pubDatetime={pubDatetime} modDatetime={modDatetime} {timezone} />
+  {description && <p>{description}</p>}
+</li>

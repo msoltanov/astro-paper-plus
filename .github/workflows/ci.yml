@@ -1,0 +1,155 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# C12: split the slow steps (lint, typecheck, test, build) into parallel
+# jobs so `astro check` and `pnpm test:coverage` no longer run back-to-back
+# in a single job. The build job depends on all three passing.
+#
+# Job graph:
+#
+#   quality ─┐
+#   typecheck┼─► build
+#   test ────┘
+#
+# `audit` and `secrets` are independent jobs (already parallel).
+
+jobs:
+  quality:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Setup pnpm + install
+        uses: ./.github/actions/setup-pnpm
+      - name: Format check
+        run: pnpm format:check
+      - name: Lint
+        run: pnpm lint
+
+  typecheck:
+    name: Type & content check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Setup pnpm + install
+        uses: ./.github/actions/setup-pnpm
+      - name: Astro check (tsc + content schema)
+        run: pnpm exec astro check
+
+  test:
+    name: Test with coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Setup pnpm + install
+        uses: ./.github/actions/setup-pnpm
+      - name: Vitest with coverage
+        run: pnpm test:coverage
+
+  build:
+    name: Build + nginx-headers test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [quality, typecheck, test]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Setup pnpm + install
+        uses: ./.github/actions/setup-pnpm
+      - name: Build site
+        run: pnpm build:site
+      - name: Test nginx asset headers
+        run: pnpm test:nginx-headers
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Production-only audits — dev-tooling advisory noise (eslint
+    # plugins, test fixtures, etc.) is tracked separately via
+    # Dependabot PRs.
+    continue-on-error: false
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Setup pnpm + install
+        uses: ./.github/actions/setup-pnpm
+      # `pnpm audit` hits the npm `/-/npm/v1/security/audits`
+      # endpoint, which was retired (HTTP 410) in favour of the
+      # bulk-advisory endpoint. pnpm 10.x hasn't migrated yet, so
+      # `pnpm audit` fails with `ERR_PNPM_AUDIT_BAD_RESPONSE` on
+      # every push.
+      #
+      # Instead of waiting on upstream pnpm to catch up (and in the
+      # meantime shipping a no-op audit that pretends to gate),
+      # `scripts/audit-deps.mjs` queries osv.dev directly via its
+      # bulk endpoint (sourced from the same GHSA + NVD feeds npm
+      # uses), without requiring a package-lock.json.
+      # See issues.md #1 for the full rationale.
+      - name: Audit production dependencies
+        run: pnpm audit:ci
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Scans both git history and the working tree via the wrapper
+    # script. The wrapper downloads the gitleaks release on first run
+    # and caches the binary in `.cache/gitleaks/` (gitignored), so CI
+    # doesn't need a separate gitleaks install step.
+    #
+    # `GITLEAKS_VERSION` is read from the `const` in
+    # `scripts/secret-scan.mjs` (the only source of truth — the
+    # bump-bot workflow in `.github/workflows/gitleaks-bump.yml`
+    # edits exactly that one line). Reading the value here via
+    # `node -p` keeps the two call sites from drifting when the
+    # version is bumped.
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      # Read the pinned gitleaks version from `scripts/secret-scan.mjs`
+      # via a tiny helper script — the inline `node -p` form used to be
+      # nested inside YAML-in-bash-in-YAML and bash would tokenize the
+      # inner double-quotes before passing the script to node, leaving
+      # an incomplete regex. `scripts/secret-scan-version.mjs` keeps
+      # the read-local-to-the-script logic out of the workflow file.
+      - name: Read pinned gitleaks version
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION="$(node scripts/secret-scan-version.mjs)"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "[ci] pinned gitleaks: ${VERSION}"
+
+      - name: Setup pnpm + install
+        uses: ./.github/actions/setup-pnpm
+
+      # Cache the gitleaks binary across CI runs so we don't
+      # re-download ~30 MB on every invocation. The wrapper script
+      # writes to `.cache/gitleaks/`; we key on the pinned version +
+      # runner arch so a bump or platform flip invalidates correctly.
+      - name: Cache gitleaks binary
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/gitleaks
+          key: gitleaks-${{ steps.version.outputs.version }}-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Run secret scan
+        env:
+          GITLEAKS_VERSION: ${{ steps.version.outputs.version }}
+        run: pnpm secret:scan

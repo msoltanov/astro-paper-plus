@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#064e3b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#g)"/>
+  <g fill="#022c22" opacity="0.55">
+    <polygon points="200,800 280,420 360,800"/>
+    <polygon points="320,800 420,360 520,800"/>
+    <polygon points="500,800 580,400 660,800"/>
+    <polygon points="640,800 740,340 840,800"/>
+    <polygon points="820,800 920,380 1020,800"/>
+  </g>
+  <text x="60" y="740" font-family="Georgia, serif" font-size="36" fill="#ecfdf5" opacity="0.75">Photo 2</text>
+</svg>

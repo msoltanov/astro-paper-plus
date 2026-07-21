@@ -1,0 +1,41 @@
+---
+import { getEntry, render } from "astro:content";
+import Layout from "@/layouts/Layout.astro";
+import AboutBody from "@/components/AboutBody.astro";
+import config from "@/config";
+import { DEFAULT_LOCALE, localeFromUrlSegment } from "@/i18n/locales";
+import { hrefByLocaleForStaticRoute } from "@/utils/hrefByLocaleForStaticRoute";
+
+// Astro's `currentLocale` may not match a `[locale]/about` route
+// consistently across adapters; resolve via the URL prefix to keep the
+// default-locale / `[locale]/` pair aligned. Falls back to default
+// locale for unprefixed URLs.
+const pathSegments = Astro.url.pathname.split("/").filter(Boolean);
+const urlLocale = localeFromUrlSegment(pathSegments[0]);
+const locale = urlLocale ?? Astro.currentLocale ?? DEFAULT_LOCALE;
+
+const about = await getEntry("pages", `${locale}/about`);
+if (!about) {
+  throw new Error(
+    `Missing content entry: \`${locale}/about.md\` (or .mdx) under \`src/content/pages/${locale}/\``
+  );
+}
+const { Content } = await render(about);
+const hrefByLocale = hrefByLocaleForStaticRoute(
+  "about",
+  Astro.site?.origin ?? new URL(Astro.url).origin,
+  locale
+);
+---
+
+<Layout
+  title={`${about.data.title} | ${config.site.title}`}
+  description={about.data.description}
+  ogImage={about.data.ogImage}
+  canonicalURL={about.data.canonicalURL}
+  hrefByLocale={hrefByLocale}
+>
+  <AboutBody {locale} title={about.data.title}>
+    <Content />
+  </AboutBody>
+</Layout>

@@ -1,0 +1,57 @@
+---
+/**
+ * `TagsIndexBody` - shared body for the `/tags/` index listings.
+ *
+ * Used by BOTH:
+ *   - `src/pages/tags/index.astro`          (default locale, unprefixed URL)
+ *   - `src/pages/[locale]/tags/index.astro` (non-default locales, prefixed URL)
+ *
+ * The two route files exist only as thin `getStaticPaths` wrappers
+ * around this component, mirroring the `TagListPageBody.astro` /
+ * `ArchivesBody.astro` pattern (see A1 in issues.md). Keeping the
+ * body in a single component guarantees that a future change to the
+ * chips / heading copy lands in both routes simultaneously.
+ *
+ * Tags under `posts/_drafts/...` and posts outside the active locale
+ * are filtered out by `getStaticPaths` upstream; this body just
+ * renders the chip list.
+ */
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import Main from "@/components/Main.astro";
+import Tag from "@/components/Tag.astro";
+import { useTranslations } from "@/i18n";
+import type { UniqueTag } from "@/utils/getUniqueTags";
+
+interface Props {
+  locale: string;
+  tags: UniqueTag[];
+  /**
+   * Override the page title. Defaults to `t.pages.tagsTitle` for the
+   * active locale — the prop is here so a future banner-bearing tag
+   * archive can override without forking the component.
+   */
+  pageTitle?: string;
+  /**
+   * Override the page description. Defaults to `t.pages.tagsDesc`.
+   */
+  pageDesc?: string;
+}
+
+const {
+  locale,
+  tags,
+  pageTitle: pageTitleProp,
+  pageDesc: pageDescProp,
+} = Astro.props;
+const t = useTranslations(locale);
+
+const pageTitle = pageTitleProp ?? t.pages.tagsTitle;
+const pageDesc = pageDescProp ?? t.pages.tagsDesc;
+---
+
+<Breadcrumb />
+<Main {pageTitle} {pageDesc}>
+  <ul class="flex flex-wrap gap-6">
+    {tags.map(({ tag, tagName }) => <Tag {tag} {tagName} />)}
+  </ul>
+</Main>
